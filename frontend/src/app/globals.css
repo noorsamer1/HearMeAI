@@ -1,0 +1,139 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 48%;
+
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 6rem;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-white/5 backdrop-blur-md border border-white/10 shadow-lg;
+  }
+  
+  .glass-card {
+    @apply bg-slate-900/40 backdrop-blur-xl border border-white/10 shadow-2xl;
+  }
+
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-brand-400 to-accent;
+  }
+
+  .premium-shadow {
+    box-shadow: 0 0 40px -10px rgba(99, 102, 241, 0.4);
+  }
+
+  .animation-delay-2000 {
+    animation-delay: 2s;
+  }
+
+  .animation-delay-4000 {
+    animation-delay: 4s;
+  }
+
+  .emoji-text {
+    font-family:
+      var(--font-inter),
+      "Segoe UI",
+      "Segoe UI Emoji",
+      "Apple Color Emoji",
+      "Noto Color Emoji",
+      sans-serif;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Custom Accessibility Focus State */
+:focus-visible {
+  outline: 2px solid theme('colors.brand.400');
+  outline-offset: 4px;
+}
+
+/* High-contrast mode (toggled via the landing page meta button + persisted in localStorage) */
+html.high-contrast {
+  filter: contrast(1.18) saturate(1.05);
+}
+html.high-contrast body {
+  background: #000 !important;
+}
+html.high-contrast .text-slate-400,
+html.high-contrast .text-slate-500 {
+  color: #e2e8f0 !important;
+}
+html.high-contrast .glass,
+html.high-contrast .glass-card {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
+}
+html.high-contrast :focus-visible {
+  outline-width: 3px;
+  outline-color: #fde047;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-800 rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-700;
+}
