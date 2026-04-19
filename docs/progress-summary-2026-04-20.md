@@ -42,6 +42,20 @@ This document records where implementation stopped so work can continue quickly 
   - Added WAV auto-detection on client audio decoding:
     - `frontend/src/lib/api/client.ts`
 
+## Installed Cursor skills (reinstall on work PC)
+
+- Installed skill repositories:
+  - `https://github.com/sickn33/antigravity-awesome-skills`
+  - `https://github.com/nextlevelbuilder/ui-ux-pro-max-skill`
+  - `https://github.com/CloudAI-X/threejs-skills`
+- Recommended install location on another PC:
+  - Global: `~/.cursor/skills/`
+  - Or project-local: `<project>/.cursor/skills/`
+- Quick reinstall example (PowerShell):
+  - `git clone https://github.com/sickn33/antigravity-awesome-skills "$env:USERPROFILE/.cursor/skills/antigravity-awesome-skills"`
+  - `git clone https://github.com/nextlevelbuilder/ui-ux-pro-max-skill "$env:USERPROFILE/.cursor/skills/ui-ux-pro-max-skill"`
+  - `git clone https://github.com/CloudAI-X/threejs-skills "$env:USERPROFILE/.cursor/skills/threejs-skills"`
+
 ## Known remaining issues
 
 - Frontend type-check still reports pre-existing errors not introduced by this session:
