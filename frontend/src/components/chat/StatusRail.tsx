@@ -49,22 +49,23 @@ export function StatusRail() {
   };
 
   return (
-    <div className="flex items-center gap-3">
-      {/* Connection indicator */}
-      <div className="flex items-center gap-1.5">
-        {isConnected ? (
-          <Wifi className="w-4 h-4 text-emerald-400" aria-hidden />
-        ) : (
-          <WifiOff className="w-4 h-4 text-red-400 animate-pulse" aria-hidden />
+    <div className="flex items-center gap-2">
+      <div
+        className={clsx(
+          "workspace-chip gap-1.5 px-2.5 py-1",
+          isConnected
+            ? "border-emerald-500/35 bg-emerald-500/12 text-emerald-300"
+            : "border-rose-500/35 bg-rose-500/12 text-rose-300"
         )}
-        <span className="text-xs text-[var(--color-text-muted)] hidden sm:block">
-          {isConnected ? t.status.connected : t.status.disconnected}
-        </span>
+      >
+        {isConnected ? (
+          <Wifi className="w-3.5 h-3.5" aria-hidden />
+        ) : (
+          <WifiOff className="w-3.5 h-3.5 animate-pulse" aria-hidden />
+        )}
+        <span className="hidden sm:inline">{isConnected ? "Connected" : "Offline"}</span>
       </div>
 
-      <div className="w-px h-4 bg-[var(--color-border)]" aria-hidden />
-
-      {/* Status indicator */}
       <AnimatePresence mode="wait">
         <motion.div
           key={systemStatus}
@@ -73,8 +74,7 @@ export function StatusRail() {
           exit={{ opacity: 0, scale: 0.9 }}
           transition={{ duration: 0.15 }}
           className={clsx(
-            "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium",
-            config.bgClass,
+            "workspace-chip gap-1.5 px-2.5 py-1 text-xs",
             config.colorClass
           )}
           role="status"
@@ -85,7 +85,7 @@ export function StatusRail() {
             className={clsx("w-3.5 h-3.5", config.pulses && "animate-pulse")}
             aria-hidden
           />
-          <span>{statusLabel[systemStatus]}</span>
+          <span>{systemStatus === "idle" ? "Ready" : statusLabel[systemStatus]}</span>
         </motion.div>
       </AnimatePresence>
     </div>

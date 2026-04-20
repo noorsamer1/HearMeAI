@@ -1,32 +1,35 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Captions, Mic } from "lucide-react";
+import { Captions, Mic, Activity, Wifi, Languages } from "lucide-react";
+import { useState } from "react";
 import { useSessionStore } from "@/lib/state/sessionStore";
 import { useTranslations } from "@/lib/i18n";
 import { clsx } from "clsx";
 import { SignPreview } from "@/components/avatar/SignPreview";
 
 export function LiveCaptionPanel() {
-  const { liveCaption, systemStatus, language } = useSessionStore();
+  const { liveCaption, systemStatus, language, isConnected, signPreview } = useSessionStore();
   const t = useTranslations(language);
   const isListening = systemStatus === "listening";
   const hasCaption = liveCaption.length > 0;
+  const [signDialect, setSignDialect] = useState<"ASL" | "BSL">("ASL");
+  const [signSpeed, setSignSpeed] = useState<"0.8x" | "1.0x" | "1.2x">("1.0x");
 
   return (
     <aside
       className={clsx(
-        "flex flex-col border-l border-[var(--color-border)]",
-        "bg-surface-raised/50 backdrop-blur-sm",
+        "workspace-divider-left flex flex-col",
+        "bg-surface-raised/40 backdrop-blur-md",
         "w-80 xl:w-96 flex-shrink-0"
       )}
       aria-label={t.captions.title}
     >
       {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--color-border)]">
+      <div className="workspace-subtle-header flex items-center gap-2 px-4 py-3">
         <div
           className={clsx(
-            "w-7 h-7 rounded-lg flex items-center justify-center",
+            "w-8 h-8 rounded-lg flex items-center justify-center border",
             isListening ? "bg-blue-500/20" : "bg-white/5"
           )}
         >
@@ -37,17 +40,45 @@ export function LiveCaptionPanel() {
         <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">
           {t.captions.title}
         </h2>
+        <span className="workspace-chip ml-auto">
+          Privacy safe
+        </span>
         {isListening && (
-          <div className="ml-auto flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
             <span className="text-xs text-blue-400">Live</span>
           </div>
         )}
       </div>
 
-      {/* Caption and expression content */}
-      <div className="flex-1 p-4 overflow-y-auto space-y-4">
-        <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/70 p-3">
+      {/* Service stack */}
+      <div className="flex-1 p-4 overflow-y-auto space-y-3">
+        <section className="workspace-zone p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
+              Services
+            </h3>
+            <span className="text-[11px] text-[var(--color-text-muted)]">
+              {language === "ar" ? "الوضع المباشر" : "Live mode"}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2 text-[11px]">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-border)] bg-[var(--color-bg)]/60 px-2 py-1 text-[var(--color-text-muted)]">
+              <Wifi className={clsx("w-3.5 h-3.5", isConnected ? "text-emerald-400" : "text-rose-400")} />
+              {isConnected ? "Connected" : "Disconnected"}
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-border)] bg-[var(--color-bg)]/60 px-2 py-1 text-[var(--color-text-muted)]">
+              <Activity className="w-3.5 h-3.5 text-brand-300" />
+              Status: {systemStatus}
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-border)] bg-[var(--color-bg)]/60 px-2 py-1 text-[var(--color-text-muted)]">
+              <Languages className="w-3.5 h-3.5 text-blue-300" />
+              {language.toUpperCase()}
+            </span>
+          </div>
+        </section>
+
+        <section className="workspace-zone-elevated p-3">
           <div className="mb-2">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
               {t.captions.title}
@@ -64,7 +95,7 @@ export function LiveCaptionPanel() {
               >
                 <div
                   className={clsx(
-                    "p-4 rounded-xl border",
+                    "p-4 rounded-xl border shadow-inner",
                     "bg-blue-500/8 border-blue-500/20",
                     "text-lg leading-relaxed text-[var(--color-text-primary)]"
                   )}
@@ -115,11 +146,57 @@ export function LiveCaptionPanel() {
           </AnimatePresence>
         </section>
 
-        <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/70 p-3">
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
-            Hologram Signer
-          </h3>
-          <SignPreview embedded />
+        <section className="workspace-zone p-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
+              Signer
+            </h3>
+            <span className="workspace-chip">
+              {signPreview ? "Active" : "Idle"}
+            </span>
+          </div>
+          <div className="workspace-zone-elevated h-[260px] xl:h-[300px] overflow-hidden">
+            <SignPreview embedded />
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setSignDialect("ASL")}
+              className={clsx(
+                "workspace-chip",
+                signDialect === "ASL" && "border-brand-400/45 bg-brand-500/15 text-brand-200"
+              )}
+              aria-pressed={signDialect === "ASL"}
+            >
+              ASL
+            </button>
+            <button
+              type="button"
+              onClick={() => setSignDialect("BSL")}
+              className={clsx(
+                "workspace-chip",
+                signDialect === "BSL" && "border-brand-400/45 bg-brand-500/15 text-brand-200"
+              )}
+              aria-pressed={signDialect === "BSL"}
+            >
+              BSL
+            </button>
+            <span className="mx-1 h-3.5 w-px bg-[var(--color-border)]/70" aria-hidden />
+            {(["0.8x", "1.0x", "1.2x"] as const).map((speed) => (
+              <button
+                key={speed}
+                type="button"
+                onClick={() => setSignSpeed(speed)}
+                className={clsx(
+                  "workspace-chip",
+                  signSpeed === speed && "border-amber-400/45 bg-amber-500/15 text-amber-200"
+                )}
+                aria-pressed={signSpeed === speed}
+              >
+                {speed}
+              </button>
+            ))}
+          </div>
         </section>
       </div>
     </aside>

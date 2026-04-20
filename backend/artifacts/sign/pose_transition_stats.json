@@ -1,0 +1,15 @@
+{
+  "transitions": [
+    [
+      "neutral->neutral",
+      43
+    ]
+  ],
+  "pose_counts": [
+    [
+      "neutral",
+      114
+    ]
+  ],
+  "fallback_pose": "neutral"
+}

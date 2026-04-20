@@ -1,87 +1,87 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { useFrame } from "@react-three/fiber";
 import { useAnimations, useGLTF } from "@react-three/drei";
-import type { Group } from "three";
-import { Box3, MeshStandardMaterial, Vector3 } from "three";
+import { Bone, type Group, type Object3D } from "three";
+import { SkeletonUtils } from "three-stdlib";
 import type { HologramPose } from "@/components/avatar/HologramSigner3D";
 
 interface RealisticSignerModelProps {
   pose: HologramPose;
+  onReady?: () => void;
 }
 
-const POSE_TO_CLIP_KEYWORDS: Record<HologramPose, string[]> = {
-  neutral: ["idle", "rest", "neutral", "stand"],
-  wave: ["wave", "hello", "greet"],
-  "thank-you": ["thank", "thanks"],
-  yes: ["yes", "agree", "nod"],
-  no: ["no", "deny", "shake"],
-  please: ["please", "beg"],
-  help: ["help", "assist"],
-  question: ["question", "how", "ask"],
+// The exported signer model contains one full avatar per phrase group.
+// We explicitly toggle those top-level groups so only one avatar is shown.
+const POSE_TO_GROUP: Record<HologramPose, string> = {
+  neutral: "idle",
+  wave: "hello",
+  "thank-you": "thank",
+  yes: "yes",
+  no: "no",
+  please: "please",
+  help: "help",
+  question: "idle",
 };
 
-export function RealisticSignerModel({ pose }: RealisticSignerModelProps) {
+const POSE_TO_CLIP_INDEX: Record<HologramPose, number> = {
+  neutral: 0,
+  wave: 1,
+  "thank-you": 2,
+  yes: 3,
+  no: 4,
+  please: 5,
+  help: 6,
+  question: 0,
+};
+
+const VARIANT_GROUP_NAMES = new Set(["idle", "hello", "thank", "yes", "no", "please", "help"]);
+
+export function RealisticSignerModel({ pose, onReady }: RealisticSignerModelProps) {
   const gltf = useGLTF("/models/signer.glb");
-  const scene = useMemo(() => gltf.scene.clone(true), [gltf.scene]);
-  const { actions, names } = useAnimations(gltf.animations, scene as Group);
-  const fit = useMemo(() => {
-    // Auto-fit arbitrary humanoid models (different origins/scales) into signer viewport.
-    const box = new Box3().setFromObject(scene);
-    const size = box.getSize(new Vector3());
-    const center = box.getCenter(new Vector3());
-
-    const targetHeight = 2.2;
-    const scale = size.y > 0 ? targetHeight / size.y : 1;
-
-    const x = -center.x * scale;
-    const y = -box.min.y * scale - 1.1;
-    const z = -center.z * scale;
-
-    return {
-      scale,
-      position: [x, y, z] as [number, number, number],
-    };
-  }, [scene]);
+  const scene = useMemo(() => SkeletonUtils.clone(gltf.scene) as Group, [gltf.scene]);
+  const { actions, names } = useAnimations(gltf.animations, scene);
+  const hipsRefs = useRef<Bone[]>([]);
 
   useEffect(() => {
-    scene.traverse((obj) => {
-      const mesh = obj as { material?: unknown; isMesh?: boolean };
-      if (!mesh.isMesh || !mesh.material) return;
-      if (Array.isArray(mesh.material)) {
-        mesh.material.forEach((m) => {
-          if (m instanceof MeshStandardMaterial) {
-            m.emissive.set("#44d8ff");
-            m.emissiveIntensity = 0.18;
-            m.metalness = Math.max(m.metalness ?? 0, 0.35);
-            m.roughness = Math.min(m.roughness ?? 1, 0.75);
-          }
-        });
-      } else if (mesh.material instanceof MeshStandardMaterial) {
-        mesh.material.emissive.set("#44d8ff");
-        mesh.material.emissiveIntensity = 0.18;
-        mesh.material.metalness = Math.max(mesh.material.metalness, 0.35);
-        mesh.material.roughness = Math.min(mesh.material.roughness, 0.75);
+    const hips: Bone[] = [];
+    scene.traverse((child) => {
+      if (child instanceof Bone && child.name.startsWith("mixamorigHips")) {
+        hips.push(child);
       }
     });
+    hipsRefs.current = hips;
   }, [scene]);
+
+  useFrame(() => {
+    // Keep the signer anchored in place, even if source animation clips
+    // contain root-motion on the hips bones.
+    for (const hips of hipsRefs.current) {
+      hips.position.x = 0;
+      hips.position.z = 0;
+    }
+  });
+
+  useEffect(() => {
+    onReady?.();
+  }, [onReady]);
+
+  useEffect(() => {
+    const activeGroup = POSE_TO_GROUP[pose];
+    scene.traverse((child: Object3D) => {
+      if (!child.name) return;
+      if (!VARIANT_GROUP_NAMES.has(child.name)) return;
+      child.visible = child.name === activeGroup;
+    });
+  }, [pose, scene]);
 
   useEffect(() => {
     if (!names.length) return;
     Object.values(actions).forEach((action) => action?.stop());
 
-    const keywords = POSE_TO_CLIP_KEYWORDS[pose];
-    const targetName =
-      names.find((name) =>
-        keywords.some((k) => name.toLowerCase().includes(k.toLowerCase()))
-      ) ??
-      names.find((name) =>
-        POSE_TO_CLIP_KEYWORDS.neutral.some((k) =>
-          name.toLowerCase().includes(k.toLowerCase())
-        )
-      ) ??
-      names[0];
-
+    const clipIndex = POSE_TO_CLIP_INDEX[pose];
+    const targetName = names[clipIndex] ?? names[0];
     const target = actions[targetName];
     if (!target) return;
     target.reset().fadeIn(0.25).play();
@@ -91,11 +91,7 @@ export function RealisticSignerModel({ pose }: RealisticSignerModelProps) {
     };
   }, [actions, names, pose]);
 
-  return (
-    <group position={fit.position} scale={fit.scale}>
-      <primitive object={scene} />
-    </group>
-  );
+  return <primitive object={scene} />;
 }
 
 useGLTF.preload("/models/signer.glb");

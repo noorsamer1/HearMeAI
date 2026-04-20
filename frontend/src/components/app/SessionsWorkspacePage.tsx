@@ -110,66 +110,118 @@ export default function SessionsWorkspacePage({ initialSessionId = null }: Sessi
     () => [...sessions].sort((a, b) => b.at - a.at),
     [sessions]
   );
+  const hasSessions = sortedSessions.length > 0;
 
   function openSession(sessionId: string) {
     setActiveSessionId(sessionId);
     router.push(`/app/sessions/${sessionId}`);
   }
 
+  function removeSession(sessionId: string) {
+    const next = sessions.filter((item) => item.sessionId !== sessionId);
+    setSessions(next);
+    writeRecentSessions(next);
+    if (activeSessionId === sessionId) {
+      setActiveSessionId(null);
+      setSessionError(null);
+      setWsTicket(null);
+      router.push("/app/sessions");
+    }
+  }
+
   return (
-    <div className="h-full min-h-0 flex">
-      <aside className="hidden lg:flex w-80 flex-col border-r border-[var(--color-border)]/60 bg-[var(--color-surface)]/50 backdrop-blur-sm">
+    <div className="h-full min-h-0 flex bg-[var(--color-bg)]">
+      <aside className="hidden lg:flex w-[21.5rem] shrink-0 flex-col border-r border-[var(--color-border)]/60 bg-[var(--color-surface)]/46 backdrop-blur-md">
         <div className="px-4 py-3 border-b border-[var(--color-border)]/60">
-          <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-muted)]">Sessions</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-muted)]">Sessions</p>
+            <span className="text-[11px] rounded-full border border-[var(--color-border)] px-2 py-0.5 text-[var(--color-text-muted)]">
+              {sortedSessions.length}
+            </span>
+          </div>
           <p className="text-sm text-[var(--color-text-secondary)] mt-1 inline-flex items-center gap-1.5">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
             Privacy mode: role + time only
           </p>
         </div>
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
-          {sortedSessions.length === 0 ? (
+        <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
+          {!hasSessions ? (
             <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-4 text-sm text-[var(--color-text-muted)]">
               No recent sessions yet.
+              <div className="mt-3">
+                <Link href="/lobby" className="text-brand-300 hover:text-brand-200 hover:underline">
+                  Create or join from lobby
+                </Link>
+              </div>
             </div>
           ) : (
             sortedSessions.map((session) => {
               const isActive = session.sessionId === activeSessionId;
               return (
-                <button
+                <div
                   key={session.sessionId}
-                  type="button"
-                  onClick={() => openSession(session.sessionId)}
-                  className={`w-full rounded-xl border px-3 py-3 text-left transition ${
+                  className={`workspace-zone w-full px-3 py-3 text-left transition ${
                     isActive
-                      ? "border-brand-400/50 bg-brand-500/15"
-                      : "border-[var(--color-border)] bg-[var(--color-bg)] hover:border-brand-400/30"
+                      ? "border-brand-400/50 bg-brand-500/15 shadow-[0_14px_30px_-24px_rgba(99,102,241,0.8)]"
+                      : "hover:border-brand-400/30"
                   }`}
-                  aria-label={`Session ${session.sessionId.slice(0, 8)}, ${sourceLabel(session.source)}, updated ${new Date(session.at).toLocaleTimeString()}`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium text-[var(--color-text-primary)] inline-flex items-center gap-1.5">
-                      <UsersRound className="w-4 h-4 text-brand-300" />
-                      {sourceLabel(session.source)}
-                    </span>
-                    {isActive && <span className="text-xs text-brand-300">Active</span>}
+                    <button
+                      type="button"
+                      onClick={() => openSession(session.sessionId)}
+                      className="min-w-0 flex-1 text-left"
+                      aria-label={`Session ${session.sessionId.slice(0, 8)}, ${sourceLabel(session.source)}, updated ${new Date(session.at).toLocaleTimeString()}`}
+                      aria-current={isActive ? "page" : undefined}
+                    >
+                      <span className="text-sm font-medium text-[var(--color-text-primary)] inline-flex items-center gap-1.5">
+                        <UsersRound className="w-4 h-4 text-brand-300" />
+                        {sourceLabel(session.source)}
+                      </span>
+                      <p className="mt-1 text-[11px] uppercase tracking-wide text-[var(--color-text-muted)]">
+                        Session #{session.sessionId.slice(0, 8)}
+                      </p>
+                      <p className="mt-1 text-xs text-[var(--color-text-muted)] inline-flex items-center gap-1">
+                        <Clock3 className="w-3.5 h-3.5" />
+                        {new Date(session.at).toLocaleString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </p>
+                    </button>
+                    <div className="flex items-center gap-2">
+                      {isActive && <span className="text-xs text-brand-300">Active</span>}
+                      <button
+                        type="button"
+                        onClick={() => removeSession(session.sessionId)}
+                        className="text-xs text-[var(--color-text-muted)] hover:text-rose-300"
+                        aria-label={`Remove session ${session.sessionId.slice(0, 8)} from recent list`}
+                        title="Remove from recent list"
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </div>
-                  <p className="mt-1 text-xs text-[var(--color-text-muted)] inline-flex items-center gap-1">
-                    <Clock3 className="w-3.5 h-3.5" />
-                    {new Date(session.at).toLocaleString([], { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" })}
-                  </p>
-                </button>
+                </div>
               );
             })
           )}
         </div>
       </aside>
 
-      <section className="flex-1 min-w-0">
+      <section className="flex-1 min-w-0 bg-[var(--color-bg)]">
         <div className="h-full min-h-0 flex flex-col">
-          <div className="lg:hidden px-3 py-2 border-b border-[var(--color-border)]/60 bg-[var(--color-surface)]/50">
+          <div className="lg:hidden px-3 py-2 border-b border-[var(--color-border)]/60 bg-[var(--color-surface)]/50 backdrop-blur-sm">
             <div className="flex items-center gap-2 overflow-x-auto pb-1">
-              {sortedSessions.length === 0 ? (
-                <p className="text-xs text-[var(--color-text-muted)]">No recent sessions yet.</p>
+              {!hasSessions ? (
+                <div className="inline-flex items-center gap-2">
+                  <p className="text-xs text-[var(--color-text-muted)]">No recent sessions yet.</p>
+                  <Link href="/lobby" className="text-xs text-brand-300 hover:text-brand-200 hover:underline">
+                    Open lobby
+                  </Link>
+                </div>
               ) : (
                 sortedSessions.map((session) => {
                   const isActive = session.sessionId === activeSessionId;
@@ -183,6 +235,7 @@ export default function SessionsWorkspacePage({ initialSessionId = null }: Sessi
                           ? "border-brand-400/60 bg-brand-500/20 text-brand-200"
                           : "border-[var(--color-border)] text-[var(--color-text-muted)]"
                       }`}
+                      aria-current={isActive ? "page" : undefined}
                     >
                       {sourceLabel(session.source)} · {new Date(session.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     </button>
@@ -192,7 +245,7 @@ export default function SessionsWorkspacePage({ initialSessionId = null }: Sessi
             </div>
           </div>
 
-          <div className="px-4 py-2 border-b border-[var(--color-border)]/60 bg-[var(--color-surface)]/40 flex items-center justify-between gap-2">
+          <div className="workspace-subtle-header px-4 py-2 flex items-center justify-between gap-2">
             <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)] inline-flex items-center gap-2">
               <MessageSquareDashed className="w-3.5 h-3.5" />
               Session workspace
@@ -209,14 +262,31 @@ export default function SessionsWorkspacePage({ initialSessionId = null }: Sessi
             <div className="flex-1 flex items-center justify-center px-6">
               <div className="max-w-md text-center space-y-3">
                 <p className="text-rose-300 text-sm">{sessionError}</p>
-                <Button type="button" size="sm" variant="secondary" onClick={() => setActiveSessionId(null)}>
-                  Back to session list
-                </Button>
+                <div className="flex items-center justify-center gap-2">
+                  <Button type="button" size="sm" variant="secondary" onClick={() => setActiveSessionId(null)}>
+                    Back to session list
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="danger"
+                    onClick={() => activeSessionId && removeSession(activeSessionId)}
+                  >
+                    Remove stale session
+                  </Button>
+                </div>
               </div>
             </div>
           ) : sessionLoading || !wsTicket ? (
-            <div className="flex-1 flex items-center justify-center text-[var(--color-text-muted)] text-sm">
-              Connecting to session...
+            <div className="flex-1 flex items-center justify-center px-6">
+              <div className="w-full max-w-md space-y-3">
+                <p className="text-sm text-[var(--color-text-muted)] text-center">Connecting to session...</p>
+                <div className="space-y-2">
+                  <div className="h-3 rounded-full bg-[var(--color-border)]/40 animate-pulse" />
+                  <div className="h-3 rounded-full bg-[var(--color-border)]/30 animate-pulse" />
+                  <div className="h-3 w-2/3 mx-auto rounded-full bg-[var(--color-border)]/20 animate-pulse" />
+                </div>
+              </div>
             </div>
           ) : (
             <ChatWorkspace wsToken={wsTicket} />
@@ -289,6 +359,20 @@ function upsertRecentSession(item: SessionListItem) {
   if (typeof window === "undefined") return;
   const current = readRecentSessions();
   const next = [item, ...current.filter((x) => x.sessionId !== item.sessionId)].slice(0, 12);
-  window.localStorage.setItem(RECENT_SESSIONS_KEY, JSON.stringify(next));
-  window.localStorage.setItem(RECENT_SESSION_KEY, JSON.stringify(item));
+  writeRecentSessions(next, item);
+}
+
+function writeRecentSessions(list: SessionListItem[], latest?: SessionListItem) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(RECENT_SESSIONS_KEY, JSON.stringify(list));
+  if (latest) {
+    window.localStorage.setItem(RECENT_SESSION_KEY, JSON.stringify(latest));
+    return;
+  }
+  const first = list[0];
+  if (first) {
+    window.localStorage.setItem(RECENT_SESSION_KEY, JSON.stringify(first));
+  } else {
+    window.localStorage.removeItem(RECENT_SESSION_KEY);
+  }
 }

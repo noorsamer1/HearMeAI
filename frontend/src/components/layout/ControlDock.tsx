@@ -55,7 +55,7 @@ export function ControlDock({ onSendText, onAudioChunk, onAudioStop }: ControlDo
   return (
     <div
       className={clsx(
-        "border-t border-[var(--color-border)] bg-[var(--color-bg)]",
+        "workspace-subtle-header border-t-0 bg-[var(--color-bg)]/70",
         "px-4 py-3"
       )}
     >
@@ -74,7 +74,7 @@ export function ControlDock({ onSendText, onAudioChunk, onAudioStop }: ControlDo
             <div
               className={clsx(
                 "flex items-end gap-2 px-4 py-3 rounded-2xl",
-                "bg-surface border border-[var(--color-border)]",
+                "workspace-zone-elevated",
                 "focus-within:border-brand-500/60 transition-colors duration-150"
               )}
             >
@@ -118,7 +118,7 @@ export function ControlDock({ onSendText, onAudioChunk, onAudioStop }: ControlDo
                 onClick={() => handleSend(true)}
                 disabled={!inputText.trim()}
                 title={t.controls.speakAloud}
-                className="gap-1.5 text-xs"
+                className="workspace-chip gap-1.5 text-xs"
               >
                 <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
                 <span>{t.controls.speakAloud}</span>

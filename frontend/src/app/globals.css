@@ -50,6 +50,74 @@
 }
 
 @layer utilities {
+  .workspace-shell {
+    @apply h-full min-h-0 rounded-2xl border;
+    border-color: color-mix(in srgb, var(--color-border) 70%, transparent);
+    background:
+      radial-gradient(120% 100% at 10% 0%, rgba(99, 102, 241, 0.08), transparent 42%),
+      radial-gradient(90% 90% at 95% 0%, rgba(56, 189, 248, 0.06), transparent 40%),
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--color-surface) 78%, transparent),
+        color-mix(in srgb, var(--color-bg) 82%, transparent)
+      );
+    box-shadow:
+      0 16px 40px -28px rgba(0, 0, 0, 0.85),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(12px);
+  }
+
+  .workspace-zone {
+    @apply rounded-xl border;
+    border-color: color-mix(in srgb, var(--color-border) 60%, transparent);
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--color-surface) 72%, transparent),
+        color-mix(in srgb, var(--color-bg) 82%, transparent)
+      );
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  }
+
+  .workspace-zone-elevated {
+    @apply rounded-xl border;
+    border-color: color-mix(in srgb, var(--color-border) 56%, transparent);
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--color-surface) 80%, transparent),
+        color-mix(in srgb, var(--color-bg) 88%, transparent)
+      );
+    box-shadow:
+      0 16px 32px -24px rgba(0, 0, 0, 0.85),
+      inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  }
+
+  .workspace-subtle-header {
+    @apply border-b;
+    border-color: color-mix(in srgb, var(--color-border) 60%, transparent);
+    background: color-mix(in srgb, var(--color-surface) 70%, transparent);
+  }
+
+  .workspace-divider-right {
+    border-right: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent);
+  }
+
+  .workspace-divider-left {
+    border-left: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent);
+  }
+
+  .workspace-chip {
+    @apply inline-flex items-center rounded-full border px-2 py-0.5 text-[11px];
+    border-color: color-mix(in srgb, var(--color-border) 72%, transparent);
+    background: color-mix(in srgb, var(--color-bg) 62%, transparent);
+    color: var(--color-text-muted);
+  }
+
+  .workspace-gutter {
+    @apply p-3 md:p-4 lg:p-5;
+  }
+
   .glass {
     @apply bg-white/5 backdrop-blur-md border border-white/10 shadow-lg;
   }
@@ -82,6 +150,85 @@
       "Apple Color Emoji",
       "Noto Color Emoji",
       sans-serif;
+  }
+
+  .emote-chip {
+    @apply inline-flex items-center gap-1.5 mx-0.5 my-0.5 px-2 py-0.5 rounded-full border align-middle;
+    @apply border-brand-400/30 bg-brand-500/15 text-[var(--color-text-primary)];
+  }
+
+  .emote-emoji {
+    @apply inline-block;
+    transform-origin: 70% 75%;
+  }
+
+  .emote-label {
+    @apply text-[11px] font-medium leading-none text-[var(--color-text-muted)];
+  }
+
+  .animate-emote-wave {
+    animation: emote-wave 1.4s ease-in-out infinite;
+  }
+
+  .animate-emote-pulse {
+    animation: emote-pulse 1.3s ease-in-out infinite;
+  }
+
+  .animate-emote-pop {
+    animation: emote-pop 1.2s ease-in-out infinite;
+  }
+
+  .animate-emote-nod {
+    animation: emote-nod 1.4s ease-in-out infinite;
+  }
+}
+
+@keyframes emote-wave {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(14deg);
+  }
+  50% {
+    transform: rotate(-8deg);
+  }
+  75% {
+    transform: rotate(10deg);
+  }
+}
+
+@keyframes emote-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+@keyframes emote-pop {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  40% {
+    transform: translateY(-2px) scale(1.14);
+  }
+}
+
+@keyframes emote-nod {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  35% {
+    transform: translateY(1px) rotate(6deg);
+  }
+  70% {
+    transform: translateY(-1px) rotate(-4deg);
   }
 }
 

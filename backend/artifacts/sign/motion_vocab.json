@@ -1,0 +1,404 @@
+{
+  "adapter": [
+    [
+      "neutral",
+      2
+    ]
+  ],
+  "ai": [
+    [
+      "neutral",
+      3
+    ]
+  ],
+  "api": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "arabic": [
+    [
+      "neutral",
+      2
+    ]
+  ],
+  "arabsign": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "auth": [
+    [
+      "neutral",
+      2
+    ]
+  ],
+  "base": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "baseline": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "build": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "cache": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "chat": [
+    [
+      "neutral",
+      2
+    ]
+  ],
+  "cli": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "client": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "common": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "config": [
+    [
+      "neutral",
+      2
+    ]
+  ],
+  "context": [
+    [
+      "neutral",
+      2
+    ]
+  ],
+  "dataset": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "deps": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "detector": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "eval": [
+    [
+      "neutral",
+      2
+    ]
+  ],
+  "export": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "health": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "init": [
+    [
+      "neutral",
+      15
+    ]
+  ],
+  "karsl": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "language": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "limit": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "loader": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "logging": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "main": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "manager": [
+    [
+      "neutral",
+      2
+    ]
+  ],
+  "manifest": [
+    [
+      "neutral",
+      2
+    ]
+  ],
+  "mapping": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "match": [
+    [
+      "neutral",
+      2
+    ]
+  ],
+  "matching": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "message": [
+    [
+      "neutral",
+      2
+    ]
+  ],
+  "metrics": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "motion": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "normalize": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "openrouter": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "phase1": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "phrase": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "queue": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "rate": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "redis": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "response": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "room": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "roundtrip": [
+    [
+      "neutral",
+      2
+    ]
+  ],
+  "router": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "schema": [
+    [
+      "neutral",
+      3
+    ]
+  ],
+  "security": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "seed": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "service": [
+    [
+      "neutral",
+      4
+    ]
+  ],
+  "session": [
+    [
+      "neutral",
+      5
+    ]
+  ],
+  "sessions": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "sign": [
+    [
+      "neutral",
+      4
+    ]
+  ],
+  "speech": [
+    [
+      "neutral",
+      3
+    ]
+  ],
+  "stt": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "text": [
+    [
+      "neutral",
+      2
+    ]
+  ],
+  "to": [
+    [
+      "neutral",
+      3
+    ]
+  ],
+  "train": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "tts": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "types": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "user": [
+    [
+      "neutral",
+      2
+    ]
+  ],
+  "users": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "validate": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "vocab": [
+    [
+      "neutral",
+      1
+    ]
+  ],
+  "ws": [
+    [
+      "neutral",
+      2
+    ]
+  ]
+}

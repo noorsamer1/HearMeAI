@@ -1,0 +1,25 @@
+{
+  "sources": [
+    {
+      "name": "karsl",
+      "adapter": "karsl",
+      "root_dir": "/home/nooraldeen/Documents/work/ai/HearMeAI/backend/app",
+      "video_glob": "**/*.py",
+      "split": "train",
+      "variant": "arsl_sa",
+      "language": "ar",
+      "source_subset": "KArSL-smoke"
+    },
+    {
+      "name": "arabsign",
+      "adapter": "arabsign",
+      "root_dir": "/home/nooraldeen/Documents/work/ai/HearMeAI/backend/tools",
+      "video_glob": "**/*.py",
+      "split": "train",
+      "variant": "arsl_sa",
+      "language": "ar",
+      "source_subset": "ArabSign-smoke"
+    }
+  ]
+}
+

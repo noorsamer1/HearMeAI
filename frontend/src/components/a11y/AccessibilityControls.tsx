@@ -28,6 +28,7 @@ export function AccessibilityControls() {
         aria-label={t.accessibility.title}
         aria-expanded={isOpen}
         title={t.accessibility.title}
+        className="h-11 w-11"
       >
         <Accessibility className="w-4 h-4" />
       </Button>

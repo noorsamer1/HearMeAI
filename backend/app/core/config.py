@@ -62,8 +62,9 @@ class Settings(BaseSettings):
         return self.stt_model  # openrouter path: e.g. openai/whisper-1
 
     # Edge TTS voices (used when tts_provider=edge)
+    # Arabic default is Saudi male to match current Arabic speech profile.
     tts_voice_en: str = "en-US-JennyNeural"
-    tts_voice_ar: str = "ar-SA-ZariyahNeural"
+    tts_voice_ar: str = "ar-SA-HamedNeural"
 
     # Database (PostgreSQL recommended; sqlite+aiosqlite supported for local dev)
     database_url: str = "sqlite+aiosqlite:///./hearme.db"

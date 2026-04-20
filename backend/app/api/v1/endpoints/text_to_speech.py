@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
+from app.core.config import get_settings
 from app.core.logging_config import get_logger
 from app.core.rate_limit import limiter
 from app.schemas.speech import TTSRequest, TTSResponse
@@ -9,6 +10,7 @@ from app.services.tts_service import TTSService, get_tts_service
 
 router = APIRouter()
 logger = get_logger(__name__)
+settings = get_settings()
 
 
 @router.post("/text-to-speech", response_model=TTSResponse)
@@ -37,7 +39,9 @@ async def text_to_speech(
             detail="Speech synthesis failed. Please try again.",
         )
 
-    voice_used = body.voice or ("ar-SA-ZariyahNeural" if body.language == "ar" else "en-US-JennyNeural")
+    voice_used = body.voice or (
+        settings.tts_voice_ar if body.language[:2].lower() == "ar" else settings.tts_voice_en
+    )
 
     return TTSResponse(
         audio_base64=audio_b64,

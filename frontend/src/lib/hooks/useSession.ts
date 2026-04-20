@@ -3,12 +3,57 @@
 import { useCallback, useEffect, useRef } from "react";
 import { SessionWebSocket, WSStatus } from "@/lib/api/websocket";
 import { base64ToAudioUrl } from "@/lib/api/client";
+import type { SignPose } from "@/lib/state/sessionStore";
 import { useSessionStore } from "@/lib/state/sessionStore";
 
 export interface UseSessionOptions {
   /** Short-lived JWT from POST /sessions/{id}/ws-ticket */
   wsToken?: string | null;
 }
+
+function normalizeSignText(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function inferSignPhraseKey(value: string): string | null {
+  const text = normalizeSignText(value);
+  if (!text) return null;
+
+  const patterns: Array<{ phrase: string; variants: string[] }> = [
+    { phrase: "hello", variants: ["hello", "hi", "hey", "مرحبا", "اهلا", "أهلا"] },
+    { phrase: "thank you", variants: ["thank you", "thanks", "شكرا", "شكرًا"] },
+    { phrase: "how are you", variants: ["how are you", "how r you", "كيف حالك", "كيف حالكم"] },
+    { phrase: "help", variants: ["help", "ساعدني", "مساعدة"] },
+    { phrase: "yes", variants: ["yes", "نعم", "ايوه", "أيوه"] },
+    { phrase: "no", variants: ["no", "لا"] },
+    { phrase: "please", variants: ["please", "من فضلك", "لو سمحت"] },
+  ];
+
+  for (const { phrase, variants } of patterns) {
+    for (const variant of variants) {
+      const normalizedVariant = normalizeSignText(variant);
+      const pattern = new RegExp(`(^|\\s)${normalizedVariant.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s|$)`);
+      if (pattern.test(text)) return phrase;
+    }
+  }
+
+  return null;
+}
+
+const ALLOWED_SIGN_POSES: readonly SignPose[] = [
+  "neutral",
+  "wave",
+  "thank-you",
+  "yes",
+  "no",
+  "please",
+  "help",
+  "question",
+];
 
 export function useSession(opts: UseSessionOptions = {}) {
   const { wsToken = null } = opts;
@@ -54,12 +99,17 @@ export function useSession(opts: UseSessionOptions = {}) {
     // ── Final transcript ──────────────────────────────────────
     ws.on("transcript_final", (e) => {
       setLiveCaption("");
+      const transcriptText = e.text as string;
       const id = addMessage({
         role: "transcript",
-        text: e.text as string,
+        text: transcriptText,
         confidence: e.confidence as number,
         detectedLang: e.lang as string,
       });
+      const phraseKey = inferSignPhraseKey(transcriptText);
+      if (phraseKey) {
+        setSignPreview({ phraseKey });
+      }
       // Map server messageId → local message id for subsequent AI linking
       if (e.messageId) {
         pendingAiMessageId.current.set(e.messageId as string, id);
@@ -83,13 +133,18 @@ export function useSession(opts: UseSessionOptions = {}) {
     ws.on("ai_final", (e) => {
       const msgId = e.messageId as string;
       const action = e.action as string | undefined;
+      const aiText = e.text as string;
       clearLiveResponse();
+      const phraseKey = inferSignPhraseKey(aiText);
+      if (phraseKey) {
+        setSignPreview({ phraseKey });
+      }
 
       if (pendingAiMessageId.current.has(msgId)) {
         // Update existing message from partial
         const localId = pendingAiMessageId.current.get(msgId)!;
         updateMessage(localId, {
-          text: e.text as string,
+          text: aiText,
           isPartial: false,
           action,
         });
@@ -98,7 +153,7 @@ export function useSession(opts: UseSessionOptions = {}) {
         // New AI message
         const localId = addMessage({
           role: "assistant",
-          text: e.text as string,
+          text: aiText,
           isPartial: false,
           action,
           sourceMessageId: e.sourceMessageId as string | undefined,
@@ -133,6 +188,10 @@ export function useSession(opts: UseSessionOptions = {}) {
       const kind = e.kind as string;
       const text = (e.text as string) || "";
       if (!text) return;
+      const phraseKey = inferSignPhraseKey(text);
+      if (phraseKey) {
+        setSignPreview({ phraseKey });
+      }
       addMessage({
         role: kind === "transcript" ? "transcript" : "user",
         text,
@@ -151,9 +210,31 @@ export function useSession(opts: UseSessionOptions = {}) {
 
     ws.on("sign_suggestion", (e) => {
       const phraseKey = e.phraseKey as string;
-      const assetUrl = e.assetUrl as string;
-      if (phraseKey && assetUrl) {
+      const assetUrl = e.assetUrl as string | undefined;
+      if (phraseKey) {
         setSignPreview({ phraseKey, assetUrl });
+      }
+    });
+
+    ws.on("sign_motion_plan", (e) => {
+      const phraseKey = (e.phraseKey as string) || "llm-plan";
+      const rawSteps = Array.isArray(e.sequence) ? e.sequence : [];
+      const motionPlan = rawSteps
+        .map((step) => {
+          if (!step || typeof step !== "object") return null;
+          const pose = (step as { pose?: string }).pose;
+          const durationMs = Number((step as { durationMs?: number }).durationMs);
+          if (!pose || Number.isNaN(durationMs)) return null;
+          if (!ALLOWED_SIGN_POSES.includes(pose as SignPose)) return null;
+          return {
+            pose: pose as SignPose,
+            durationMs: Math.max(350, Math.min(durationMs, 2200)),
+          };
+        })
+        .filter((step): step is { pose: SignPose; durationMs: number } => step !== null);
+
+      if (motionPlan.length > 0) {
+        setSignPreview({ phraseKey, motionPlan });
       }
     });
 
@@ -179,9 +260,13 @@ export function useSession(opts: UseSessionOptions = {}) {
 
   const sendText = useCallback(
     (text: string, requestTTS = false) => {
+      const phraseKey = inferSignPhraseKey(text);
+      if (phraseKey) {
+        setSignPreview({ phraseKey });
+      }
       wsRef.current?.sendText(text, requestTTS, language);
     },
-    [language]
+    [language, setSignPreview]
   );
 
   const sendAudioChunk = useCallback((base64: string, mimeType: string) => {

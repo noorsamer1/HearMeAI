@@ -44,25 +44,36 @@ export function ChatWorkspace(sessionOpts: UseSessionOptions = {}) {
   return (
     <>
       <AppLayout>
-        <div className="flex flex-col flex-1 min-w-0">
-          <div className="flex flex-1 min-h-0 overflow-hidden">
-            <div className="flex flex-col flex-1 min-w-0 border-r border-[var(--color-border)]/60">
-              <div className="px-4 py-2 border-b border-[var(--color-border)]/60 bg-[var(--color-surface)]/40">
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
-                  Conversation (Deaf user view)
-                </h2>
+        <div className="workspace-gutter flex flex-1 min-h-0 min-w-0">
+          <div className="workspace-shell w-full min-h-0 flex flex-col">
+            <div className="workspace-gutter flex flex-col flex-1 min-h-0 gap-3">
+              <div className="workspace-zone flex flex-1 min-h-0 overflow-hidden">
+                <div className="workspace-divider-right flex flex-col flex-1 min-w-0">
+                  <div className="workspace-subtle-header px-4 py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-text-muted)]">
+                        Conversation
+                      </h2>
+                      <span className="workspace-chip">
+                        Deaf user view
+                      </span>
+                    </div>
+                  </div>
+                  <ChatTimeline onAction={handleAction} />
+                </div>
+                <div className="hidden lg:flex">
+                  <LiveCaptionPanel />
+                </div>
               </div>
-              <ChatTimeline onAction={handleAction} />
-            </div>
-            <div className="hidden lg:flex">
-              <LiveCaptionPanel />
+              <div className="workspace-zone overflow-hidden">
+                <ControlDock
+                  onSendText={handleSendText}
+                  onAudioChunk={handleAudioChunk}
+                  onAudioStop={handleAudioStop}
+                />
+              </div>
             </div>
           </div>
-          <ControlDock
-            onSendText={handleSendText}
-            onAudioChunk={handleAudioChunk}
-            onAudioStop={handleAudioStop}
-          />
         </div>
       </AppLayout>
       <ToastContainer />

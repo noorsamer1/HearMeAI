@@ -39,12 +39,12 @@ VOICE_MAP = {
     "en": {
         "female": "en-US-JennyNeural",
         "male": "en-US-AndrewNeural",
-        "default": "en-US-JennyNeural",
+        "default": settings.tts_voice_en or "en-US-JennyNeural",
     },
     "ar": {
         "female": "ar-SA-ZariyahNeural",
         "male": "ar-SA-HamedNeural",
-        "default": "ar-SA-ZariyahNeural",
+        "default": settings.tts_voice_ar or "ar-SA-HamedNeural",
     },
 }
 
@@ -63,7 +63,7 @@ class TTSService:
         text: str,
         language: str = "en",
         voice: str | None = None,
-        gender: str = "female",
+        gender: str = "default",
         speed: float = 1.0,
     ) -> tuple[str, float]:
         """
@@ -402,7 +402,7 @@ class TTSService:
             logger.info("TTS client ready", provider="gpt-audio-mini", voice=settings.gpt_audio_voice)
         return self._openai_client
 
-    def _resolve_edge_voice(self, language: str, gender: str = "female") -> str:
+    def _resolve_edge_voice(self, language: str, gender: str = "default") -> str:
         lang_code = language[:2].lower()
         lang_voices = VOICE_MAP.get(lang_code, VOICE_MAP["en"])
         return lang_voices.get(gender, lang_voices["default"])

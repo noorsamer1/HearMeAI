@@ -6,6 +6,20 @@ export type MessageRole = "user" | "assistant" | "transcript" | "action-result";
 export type SystemStatus = "idle" | "listening" | "processing" | "speaking";
 export type Language = "en" | "ar";
 export type FontSize = "normal" | "large" | "xlarge";
+export type SignPose =
+  | "neutral"
+  | "wave"
+  | "thank-you"
+  | "yes"
+  | "no"
+  | "please"
+  | "help"
+  | "question";
+
+export interface SignMotionStep {
+  pose: SignPose;
+  durationMs: number;
+}
 
 export interface ChatMessage {
   id: string;
@@ -34,7 +48,7 @@ interface SessionState {
   fontSize: FontSize;
   inputText: string;
   activeAudioId: string | null;
-  signPreview: { phraseKey: string; assetUrl: string } | null;
+  signPreview: { phraseKey: string; assetUrl?: string; motionPlan?: SignMotionStep[] } | null;
 
   // Actions
   setSessionId: (id: string) => void;
@@ -50,7 +64,9 @@ interface SessionState {
   setFontSize: (size: FontSize) => void;
   setInputText: (text: string) => void;
   setActiveAudioId: (id: string | null) => void;
-  setSignPreview: (value: { phraseKey: string; assetUrl: string } | null) => void;
+  setSignPreview: (
+    value: { phraseKey: string; assetUrl?: string; motionPlan?: SignMotionStep[] } | null
+  ) => void;
   clearMessages: () => void;
 }
 

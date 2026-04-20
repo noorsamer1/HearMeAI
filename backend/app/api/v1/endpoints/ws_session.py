@@ -5,7 +5,10 @@ Query: ?token=<ws_ticket_jwt> for DB-backed sessions (see POST /sessions/{id}/ws
 """
 
 import base64
+import json
+import re
 import uuid
+from pathlib import Path
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
@@ -24,12 +27,97 @@ from app.services.language_detector import compute_readability_score, detect_lan
 from app.services.openrouter_client import get_llm_client
 from app.services.sign_phrase_service import best_sign_suggestion
 from app.services.stt_service import get_stt_service
-from app.services.tts_service import VOICE_MAP, get_tts_service
+from app.services.tts_service import get_tts_service
 from app.services.ws_redis import broadcast_fanout
 
 router = APIRouter()
 logger = get_logger(__name__)
 settings = get_settings()
+SIGN_POSES = {"neutral", "wave", "thank-you", "yes", "no", "please", "help", "question"}
+TOKEN_RE = re.compile(r"[\w']+", re.UNICODE)
+BACKEND_ROOT = Path(__file__).resolve().parents[4]
+ARTIFACTS_DIR = BACKEND_ROOT / "artifacts" / "sign"
+MOTION_VOCAB_PATH = ARTIFACTS_DIR / "motion_vocab.json"
+TRANSITION_STATS_PATH = ARTIFACTS_DIR / "pose_transition_stats.json"
+_ARTIFACT_CACHE: dict[str, object] = {"loaded": False}
+
+
+def _load_sign_artifacts() -> tuple[dict[str, list[list]], dict]:
+    """Load artifact-backed sign planning resources with lightweight caching."""
+    vocab_mtime = MOTION_VOCAB_PATH.stat().st_mtime if MOTION_VOCAB_PATH.exists() else None
+    trans_mtime = TRANSITION_STATS_PATH.stat().st_mtime if TRANSITION_STATS_PATH.exists() else None
+    cache_ready = (
+        _ARTIFACT_CACHE.get("loaded")
+        and _ARTIFACT_CACHE.get("vocab_mtime") == vocab_mtime
+        and _ARTIFACT_CACHE.get("trans_mtime") == trans_mtime
+    )
+    if cache_ready:
+        vocab = _ARTIFACT_CACHE.get("motion_vocab", {})
+        transitions = _ARTIFACT_CACHE.get("transition_stats", {})
+        return vocab if isinstance(vocab, dict) else {}, transitions if isinstance(transitions, dict) else {}
+
+    motion_vocab: dict[str, list[list]] = {}
+    transition_stats: dict = {}
+    try:
+        if MOTION_VOCAB_PATH.exists():
+            motion_vocab = json.loads(MOTION_VOCAB_PATH.read_text(encoding="utf-8"))
+        if TRANSITION_STATS_PATH.exists():
+            transition_stats = json.loads(TRANSITION_STATS_PATH.read_text(encoding="utf-8"))
+    except Exception as exc:
+        logger.debug("failed loading sign artifacts", error=str(exc))
+        motion_vocab = {}
+        transition_stats = {}
+
+    _ARTIFACT_CACHE.update(
+        {
+            "loaded": True,
+            "vocab_mtime": vocab_mtime,
+            "trans_mtime": trans_mtime,
+            "motion_vocab": motion_vocab,
+            "transition_stats": transition_stats,
+        }
+    )
+    return motion_vocab, transition_stats
+
+
+def _artifact_motion_plan(text: str, lang: str) -> dict | None:
+    """Build sign motion plan from local training artifacts."""
+    clean_text = (text or "").strip().lower()
+    if not clean_text:
+        return None
+
+    motion_vocab, transition_stats = _load_sign_artifacts()
+    if not motion_vocab:
+        return None
+
+    tokens = TOKEN_RE.findall(clean_text)
+    if not tokens:
+        return None
+
+    fallback_pose = str(transition_stats.get("fallback_pose") or "neutral")
+    if fallback_pose not in SIGN_POSES:
+        fallback_pose = "neutral"
+
+    plan_steps: list[dict] = []
+    for token in tokens[:6]:
+        candidates = motion_vocab.get(token, [])
+        pose = fallback_pose
+        if candidates and isinstance(candidates, list):
+            top = candidates[0]
+            if isinstance(top, list) and top:
+                candidate_pose = str(top[0]).strip()
+                if candidate_pose in SIGN_POSES:
+                    pose = candidate_pose
+        if plan_steps and plan_steps[-1]["pose"] == pose:
+            continue
+        plan_steps.append({"pose": pose, "durationMs": 900})
+
+    if not plan_steps:
+        return None
+    if plan_steps[-1]["pose"] != "neutral":
+        plan_steps.append({"pose": "neutral", "durationMs": 700})
+
+    return {"phraseKey": f"artifact-{lang[:2] or 'ar'}", "sequence": plan_steps}
 
 
 async def _stream_llm(llm, messages: list, message_id: str, send_fn) -> str:
@@ -45,6 +133,81 @@ async def _stream_llm(llm, messages: list, message_id: str, send_fn) -> str:
         await send_fn({"type": "error", "message": "AI response failed", "code": "llm_error"})
 
     return full_text.strip()
+
+
+async def _build_sign_motion_plan(llm, text: str, lang: str) -> dict | None:
+    """Use LLM to generate signer pose timeline for current text."""
+    artifact_plan = _artifact_motion_plan(text, lang)
+    if artifact_plan:
+        return artifact_plan
+
+    if not settings.openrouter_api_key:
+        return None
+    clean_text = (text or "").strip()
+    if not clean_text:
+        return None
+
+    short_text = clean_text[:280]
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "Return ONLY JSON. Create a signer motion plan from user text. "
+                "Allowed poses: neutral, wave, thank-you, yes, no, please, help, question. "
+                "Use 1-6 steps, each with durationMs between 350 and 2200. "
+                "Do not use any pose outside the list."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                f"language={lang}\n"
+                f"text={short_text}\n\n"
+                'JSON schema: {"phraseKey":"string","sequence":[{"pose":"wave","durationMs":900}]}\n'
+                "If greeting, include wave early. If uncertain, use neutral."
+            ),
+        },
+    ]
+
+    try:
+        raw = await llm.complete_with_model(
+            model=settings.classifier_model,
+            messages=messages,
+            temperature=0.2,
+            max_tokens=260,
+            json_mode=True,
+        )
+        payload = json.loads(raw)
+    except Exception as exc:
+        logger.debug("sign motion plan generation failed", error=str(exc))
+        return None
+
+    if not isinstance(payload, dict):
+        return None
+
+    phrase_key = str(payload.get("phraseKey") or "llm-plan").strip() or "llm-plan"
+    sequence_in = payload.get("sequence")
+    if not isinstance(sequence_in, list):
+        return None
+
+    sequence: list[dict] = []
+    for step in sequence_in[:6]:
+        if not isinstance(step, dict):
+            continue
+        pose = str(step.get("pose") or "").strip()
+        if pose not in SIGN_POSES:
+            continue
+        try:
+            duration = int(step.get("durationMs"))
+        except (TypeError, ValueError):
+            continue
+        duration = max(350, min(duration, 2200))
+        sequence.append({"pose": pose, "durationMs": duration})
+
+    if not sequence:
+        return None
+
+    return {"phraseKey": phrase_key, "sequence": sequence}
 
 
 @router.websocket("/ws/session/{session_id}")
@@ -98,6 +261,14 @@ async def websocket_session(
 
     async def set_status(state: str):
         await send({"type": "status", "state": state})
+
+    async def emit_sign_motion_plan(text: str, lang: str) -> None:
+        plan = await _build_sign_motion_plan(llm, text, lang)
+        if not plan:
+            return
+        payload = {"type": "sign_motion_plan", **plan}
+        await send(payload)
+        await broadcast_fanout(session_id, payload, exclude_user_key=None)
 
     async def load_room_ai_flag() -> bool:
         if not room_mode:
@@ -244,6 +415,7 @@ async def websocket_session(
             "lang": detected_lang,
             "messageId": str(msg_uuid),
         })
+        await emit_sign_motion_plan(text, detected_lang)
 
         ai_assist = await load_room_ai_flag()
         classification: dict = {}
@@ -277,6 +449,7 @@ async def websocket_session(
                 )
                 ctx.add("assistant", full_response)
                 enhancement = full_response
+                await emit_sign_motion_plan(full_response, detected_lang)
             if room_mode and classification and not enhancement:
                 enhancement = await enhance_text(text, classification, locale=detected_lang[:2])
                 if enhancement:
@@ -319,29 +492,8 @@ async def websocket_session(
 
         msg_uuid = uuid4()
         await persist_and_fanout_user_text(text, msg_uuid, lang)
+        await emit_sign_motion_plan(text, lang)
         ctx.add("user", text)
-
-        if request_tts:
-            await set_status("speaking")
-            try:
-                audio_b64, duration = await tts.synthesize(text=text, language=lang)
-                lang_key = lang[:2].lower()
-                voices = VOICE_MAP.get(lang_key, VOICE_MAP["en"])
-                voice_name = voices["default"]
-                payload = {
-                    "type": "tts_ready",
-                    "audio": audio_b64,
-                    "messageId": str(msg_uuid),
-                    "duration": round(duration, 2),
-                    "voice": voice_name,
-                }
-                await send(payload)
-                await broadcast_fanout(session_id, payload, exclude_user_key=user_key)
-            except Exception as exc:
-                logger.error("TTS failed", session_id=session_id, error=str(exc))
-                await send({"type": "error", "message": "Speech synthesis failed", "code": "tts_error"})
-            await set_status("idle")
-            return
 
         ai_assist = await load_room_ai_flag()
         classification: dict = {}
@@ -363,6 +515,7 @@ async def websocket_session(
             full_response = await _stream_llm(llm, ctx.get_messages(), ai_id, send)
             if full_response:
                 ctx.add("assistant", full_response)
+                await emit_sign_motion_plan(full_response, lang)
                 if room_mode and settings.openrouter_api_key:
                     await save_ai_meta(
                         msg_uuid,
@@ -370,6 +523,23 @@ async def websocket_session(
                         full_response,
                         model_name=settings.openrouter_model,
                     )
+                if request_tts:
+                    await set_status("speaking")
+                    try:
+                        audio_b64, duration = await tts.synthesize(text=full_response, language=lang)
+                        voice_name = settings.tts_voice_ar if lang[:2].lower() == "ar" else settings.tts_voice_en
+                        payload = {
+                            "type": "tts_ready",
+                            "audio": audio_b64,
+                            "messageId": ai_id,
+                            "duration": round(duration, 2),
+                            "voice": voice_name,
+                        }
+                        await send(payload)
+                        await broadcast_fanout(session_id, payload, exclude_user_key=user_key)
+                    except Exception as exc:
+                        logger.error("TTS failed", session_id=session_id, error=str(exc))
+                        await send({"type": "error", "message": "Speech synthesis failed", "code": "tts_error"})
             await set_status("idle")
         elif room_mode and settings.openrouter_api_key:
             enhancement = await enhance_text(text, classification, locale=lang[:2])
@@ -387,6 +557,43 @@ async def websocket_session(
                 enhancement,
                 model_name=settings.enhancer_model_name,
             )
+            if request_tts and enhancement:
+                await set_status("speaking")
+                try:
+                    audio_b64, duration = await tts.synthesize(text=enhancement, language=lang)
+                    voice_name = settings.tts_voice_ar if lang[:2].lower() == "ar" else settings.tts_voice_en
+                    payload = {
+                        "type": "tts_ready",
+                        "audio": audio_b64,
+                        "messageId": str(msg_uuid),
+                        "duration": round(duration, 2),
+                        "voice": voice_name,
+                    }
+                    await send(payload)
+                    await broadcast_fanout(session_id, payload, exclude_user_key=user_key)
+                except Exception as exc:
+                    logger.error("TTS failed", session_id=session_id, error=str(exc))
+                    await send({"type": "error", "message": "Speech synthesis failed", "code": "tts_error"})
+                await set_status("idle")
+        elif request_tts:
+            # Fallback when AI assist is disabled: speak user's input text.
+            await set_status("speaking")
+            try:
+                audio_b64, duration = await tts.synthesize(text=text, language=lang)
+                voice_name = settings.tts_voice_ar if lang[:2].lower() == "ar" else settings.tts_voice_en
+                payload = {
+                    "type": "tts_ready",
+                    "audio": audio_b64,
+                    "messageId": str(msg_uuid),
+                    "duration": round(duration, 2),
+                    "voice": voice_name,
+                }
+                await send(payload)
+                await broadcast_fanout(session_id, payload, exclude_user_key=user_key)
+            except Exception as exc:
+                logger.error("TTS failed", session_id=session_id, error=str(exc))
+                await send({"type": "error", "message": "Speech synthesis failed", "code": "tts_error"})
+            await set_status("idle")
 
     async def handle_action(action: str, text: str, target_lang: str | None, source_msg_id: str):
         await set_status("processing")
