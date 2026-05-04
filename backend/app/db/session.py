@@ -49,7 +49,14 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db() -> None:
-    """Create tables if they do not exist (dev convenience; prefer Alembic in production)."""
+    """Create any missing tables (SQLite dev / old DB files).
+
+    Alembic only runs each revision once; if ``hearme.db`` predates a new model,
+    ``upgrade`` is a no-op and new tables never appear. ``create_all`` only adds
+    tables that are missing, so this is safe for existing data.
+    """
+    import app.models  # noqa: F401 — register all models on Base.metadata
+
     engine = get_engine()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

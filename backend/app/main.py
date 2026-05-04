@@ -18,7 +18,7 @@ from app.core.logging_config import configure_logging, get_logger
 from app.core.metrics import metrics
 from app.core.rate_limit import limiter
 from app.db.seed import seed_sign_mappings_if_empty
-from app.db.session import get_session_factory
+from app.db.session import get_session_factory, init_db
 from app.services.ws_redis import start_redis_ws_listener, stop_redis_ws_listener
 
 settings = get_settings()
@@ -37,6 +37,7 @@ async def lifespan(app: FastAPI):
     )
     try:
         factory = get_session_factory()
+        await init_db()
         async with factory() as db:
             await seed_sign_mappings_if_empty(db)
             await db.commit()
