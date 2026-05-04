@@ -54,3 +54,13 @@ export async function fetchMe(token: string): Promise<{
 }> {
   return apiFetch("/api/v1/users/me", { token });
 }
+
+export interface DashboardStats {
+  total_sessions: number;
+  total_messages: number;
+  transcript_count: number;
+}
+
+export async function fetchDashboardStats(token: string): Promise<DashboardStats> {
+  return apiFetch("/api/v1/users/me/dashboard-stats", { token });
+}

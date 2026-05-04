@@ -76,6 +76,14 @@ class UserMeOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class DashboardStatsOut(BaseModel):
+    """Real usage counters for the dashboard (no mock data)."""
+
+    total_sessions: int = Field(ge=0, description="Sessions the user has joined.")
+    total_messages: int = Field(ge=0, description="Persisted chat rows in those sessions.")
+    transcript_count: int = Field(ge=0, description="Speech-to-text transcript messages saved.")
+
+
 class MatchEnqueueRequest(BaseModel):
     """Which side of the pair you are joining for matchmaking (deaf/listener vs mute/speaker)."""
 

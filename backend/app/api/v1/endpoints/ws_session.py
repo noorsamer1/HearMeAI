@@ -347,6 +347,22 @@ async def websocket_session(
         if sign:
             await broadcast_fanout(session_id, {"type": "sign_suggestion", **sign}, exclude_user_key=None)
 
+    async def persist_ai_assistant_message(content: str, message_id: UUID) -> None:
+        """Store assistant reply so session history survives reload (separate from user/transcript rows)."""
+        if not room_mode or not (content or "").strip():
+            return
+        factory = get_session_factory()
+        async with factory() as db:
+            await message_crud.create_message(
+                db,
+                session_id=UUID(session_id),
+                sender_id=None,
+                kind="ai_assistant",
+                content_text=content.strip(),
+                message_id=message_id,
+            )
+            await db.commit()
+
     async def save_ai_meta(
         msg_uuid: UUID,
         classification: dict,
@@ -420,6 +436,7 @@ async def websocket_session(
         ai_assist = await load_room_ai_flag()
         classification: dict = {}
         enhancement = ""
+        persisted_assistant_row = False
 
         if settings.openrouter_api_key:
             classification = await classify_text(text)
@@ -449,6 +466,8 @@ async def websocket_session(
                 )
                 ctx.add("assistant", full_response)
                 enhancement = full_response
+                await persist_ai_assistant_message(full_response, UUID(ai_id))
+                persisted_assistant_row = True
                 await emit_sign_motion_plan(full_response, detected_lang)
             if room_mode and classification and not enhancement:
                 enhancement = await enhance_text(text, classification, locale=detected_lang[:2])
@@ -460,6 +479,8 @@ async def websocket_session(
                             "messageId": str(msg_uuid),
                         }
                     )
+                    await persist_ai_assistant_message(enhancement, uuid4())
+                    persisted_assistant_row = True
         elif settings.openrouter_api_key and room_mode:
             enhancement = await enhance_text(text, classification, locale=detected_lang[:2])
             if enhancement:
@@ -470,13 +491,16 @@ async def websocket_session(
                         "messageId": str(msg_uuid),
                     }
                 )
+                await persist_ai_assistant_message(enhancement, uuid4())
+                persisted_assistant_row = True
 
         if room_mode and settings.openrouter_api_key:
+            meta_enhancement = "" if persisted_assistant_row else enhancement
             await save_ai_meta(
                 msg_uuid,
                 classification,
-                enhancement,
-                model_name=settings.enhancer_model_name if enhancement else settings.classifier_model,
+                meta_enhancement,
+                model_name=settings.enhancer_model_name if meta_enhancement else settings.classifier_model,
             )
 
         await set_status("idle")
@@ -515,12 +539,13 @@ async def websocket_session(
             full_response = await _stream_llm(llm, ctx.get_messages(), ai_id, send)
             if full_response:
                 ctx.add("assistant", full_response)
+                await persist_ai_assistant_message(full_response, UUID(ai_id))
                 await emit_sign_motion_plan(full_response, lang)
                 if room_mode and settings.openrouter_api_key:
                     await save_ai_meta(
                         msg_uuid,
                         classification,
-                        full_response,
+                        "",
                         model_name=settings.openrouter_model,
                     )
                 if request_tts:
@@ -551,10 +576,11 @@ async def websocket_session(
                         "messageId": str(msg_uuid),
                     }
                 )
+                await persist_ai_assistant_message(enhancement, uuid4())
             await save_ai_meta(
                 msg_uuid,
                 classification,
-                enhancement,
+                "" if enhancement else "",
                 model_name=settings.enhancer_model_name,
             )
             if request_tts and enhancement:
@@ -624,6 +650,8 @@ async def websocket_session(
                     "readabilityScore": compute_readability_score(result_text),
                 }
             )
+            if result_text:
+                await persist_ai_assistant_message(result_text, UUID(result_id))
         except Exception as exc:
             logger.error("Action failed", action=action, session_id=session_id, error=str(exc))
             await send({"type": "error", "message": f"Action '{action}' failed", "code": "action_error"})

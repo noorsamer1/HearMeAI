@@ -2,11 +2,28 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.crud import dashboard_stats as stats_crud
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.session_api import UserMeOut, UserPreferencesPatch
+from app.schemas.session_api import DashboardStatsOut, UserMeOut, UserPreferencesPatch
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+@router.get("/me/dashboard-stats", response_model=DashboardStatsOut)
+async def read_dashboard_stats(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Counts derived from DB (sessions, messages, transcripts the user is part of)."""
+    total_sessions = await stats_crud.count_user_sessions(db, user.id)
+    total_messages = await stats_crud.count_user_messages(db, user.id)
+    transcript_count = await stats_crud.count_user_transcripts(db, user.id)
+    return DashboardStatsOut(
+        total_sessions=total_sessions,
+        total_messages=total_messages,
+        transcript_count=transcript_count,
+    )
 
 
 @router.get("/me", response_model=UserMeOut)

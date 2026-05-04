@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Clock3, MessageSquareDashed, ShieldCheck, UserRound, UsersRound } from "lucide-react";
 import { getStoredToken } from "@/lib/api/client";
 import { fetchMe } from "@/lib/api/authApi";
-import { getSession, getWsTicket } from "@/lib/api/sessionApi";
-import { useSessionStore } from "@/lib/state/sessionStore";
+import { getSession, getWsTicket, listAllSessionMessages, type SessionMessageRow } from "@/lib/api/sessionApi";
+import { useSessionStore, type ChatMessage, type MessageRole } from "@/lib/state/sessionStore";
 import { ChatWorkspace } from "@/components/chat/ChatWorkspace";
 import { Button } from "@/components/common/Button";
 
@@ -31,9 +31,12 @@ export default function SessionsWorkspacePage({ initialSessionId = null }: Sessi
   const router = useRouter();
   const setSessionId = useSessionStore((s) => s.setSessionId);
   const clearMessages = useSessionStore((s) => s.clearMessages);
+  const setMessages = useSessionStore((s) => s.setMessages);
 
   const [token, setToken] = useState<string | null>(null);
   const [userType, setUserType] = useState<UserType>("deaf");
+  const userTypeRef = useRef<UserType>("deaf");
+  userTypeRef.current = userType;
   const [activeSessionId, setActiveSessionId] = useState<string | null>(initialSessionId);
   const [wsTicket, setWsTicket] = useState<string | null>(null);
   const [sessionLoading, setSessionLoading] = useState(false);
@@ -84,12 +87,15 @@ export default function SessionsWorkspacePage({ initialSessionId = null }: Sessi
     (async () => {
       try {
         await getSession(token, activeSessionId);
+        const apiMessages = await listAllSessionMessages(token, activeSessionId);
+        if (cancelled) return;
+        setMessages(apiMessages.map(sessionRowToChatMessage));
         const ws = await getWsTicket(token, activeSessionId);
         if (cancelled) return;
         setWsTicket(ws.token);
         upsertRecentSession({
           sessionId: activeSessionId,
-          source: inferSourceFromUserType(userType),
+          source: inferSourceFromUserType(userTypeRef.current),
           at: Date.now(),
         });
         setSessions(readRecentSessions());
@@ -104,7 +110,7 @@ export default function SessionsWorkspacePage({ initialSessionId = null }: Sessi
     return () => {
       cancelled = true;
     };
-  }, [activeSessionId, token, setSessionId, clearMessages, userType]);
+  }, [activeSessionId, token, setSessionId, clearMessages, setMessages]);
 
   const sortedSessions = useMemo(
     () => [...sessions].sort((a, b) => b.at - a.at),
@@ -331,6 +337,23 @@ function inferSourceFromUserType(userType: UserType): RecentSource {
   if (userType === "mute") return "join";
   if (userType === "both") return "match";
   return "create";
+}
+
+function sessionRowToChatMessage(row: SessionMessageRow): ChatMessage {
+  const role: MessageRole =
+    row.kind === "transcript"
+      ? "transcript"
+      : row.kind === "user_text"
+        ? "user"
+        : "assistant";
+  const t = Date.parse(row.created_at);
+  return {
+    id: row.id,
+    role,
+    text: row.content_text,
+    timestamp: Number.isFinite(t) ? t : Date.now(),
+    isPartial: false,
+  };
 }
 
 function readRecentSessions(): SessionListItem[] {

@@ -68,6 +68,8 @@ interface SessionState {
     value: { phraseKey: string; assetUrl?: string; motionPlan?: SignMotionStep[] } | null
   ) => void;
   clearMessages: () => void;
+  /** Replace timeline (e.g. after loading history from the API). */
+  setMessages: (messages: ChatMessage[]) => void;
 }
 
 export const useSessionStore = create<SessionState>()(
@@ -116,6 +118,8 @@ export const useSessionStore = create<SessionState>()(
       setActiveAudioId: (id) => set({ activeAudioId: id }),
       setSignPreview: (value) => set({ signPreview: value }),
       clearMessages: () => set({ messages: [], liveCaption: "", liveAiResponse: "", signPreview: null }),
+      setMessages: (messages) =>
+        set({ messages, liveCaption: "", liveAiResponse: "", signPreview: null }),
     }),
     { name: "session-store" }
   )
