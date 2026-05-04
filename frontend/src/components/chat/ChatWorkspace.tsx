@@ -10,7 +10,26 @@ import { useSession, UseSessionOptions } from "@/lib/hooks/useSession";
 import { useTheme } from "@/lib/hooks/useTheme";
 import { useSessionStore } from "@/lib/state/sessionStore";
 
-export function ChatWorkspace(sessionOpts: UseSessionOptions = {}) {
+type ProfileUserType = "deaf" | "mute" | "both";
+
+export type ChatWorkspaceProps = UseSessionOptions & {
+  /** From account — drives the conversation panel subtitle (Listener vs Speaker). */
+  userType?: ProfileUserType;
+};
+
+function conversationPanelTitle(userType: ProfileUserType): string {
+  if (userType === "mute") return "Conversation (Speaker view)";
+  if (userType === "both") return "Conversation (Listener & speaker)";
+  return "Conversation (Listener view)";
+}
+
+function conversationModeChip(userType: ProfileUserType): string {
+  if (userType === "mute") return "Speaker view";
+  if (userType === "both") return "Listener & speaker";
+  return "Listener view";
+}
+
+export function ChatWorkspace({ userType = "deaf", ...sessionOpts }: ChatWorkspaceProps = {}) {
   useTheme();
   const { sendText, sendAudioChunk, sendAudioEnd, sendAction } = useSession(sessionOpts);
   const { addMessage } = useSessionStore();
@@ -52,11 +71,9 @@ export function ChatWorkspace(sessionOpts: UseSessionOptions = {}) {
                   <div className="workspace-subtle-header px-4 py-3">
                     <div className="flex items-center justify-between gap-2">
                       <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-text-muted)]">
-                        Conversation
+                        {conversationPanelTitle(userType)}
                       </h2>
-                      <span className="workspace-chip">
-                        Deaf user view
-                      </span>
+                      <span className="workspace-chip">{conversationModeChip(userType)}</span>
                     </div>
                   </div>
                   <ChatTimeline onAction={handleAction} />

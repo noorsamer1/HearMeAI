@@ -289,7 +289,7 @@ export default function SessionsWorkspacePage({ initialSessionId = null }: Sessi
               </div>
             </div>
           ) : (
-            <ChatWorkspace wsToken={wsTicket} />
+            <ChatWorkspace wsToken={wsTicket} userType={userType} />
           )}
         </div>
       </section>

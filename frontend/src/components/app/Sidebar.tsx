@@ -3,18 +3,91 @@
 import { MessageSquare, LayoutDashboard, Settings, HelpCircle, LogOut, Menu, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect, useCallback } from "react";
+import { getStoredToken } from "@/lib/api/client";
+import { fetchMe, logoutAccount } from "@/lib/api/authApi";
+
+/** Up to two letters for the avatar from display name (or email). */
+function initialsFromDisplayName(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) return "?";
+  const parts = trimmed.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) {
+    const w = parts[0];
+    return w.length >= 2 ? w.slice(0, 2).toUpperCase() : w[0].toUpperCase();
+  }
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function profileRoleLabel(userType: string | null): string {
+  if (!userType) return "";
+  switch (userType) {
+    case "deaf":
+      return "Listener";
+    case "mute":
+      return "Speaker";
+    case "both":
+      return "Listener & speaker";
+    default:
+      return userType;
+  }
+}
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState("");
+  const [userType, setUserType] = useState<string | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+
+  const loadProfile = useCallback(() => {
+    const token = getStoredToken();
+    if (!token) {
+      setDisplayName("");
+      setEmail("");
+      setUserType(null);
+      setProfileLoading(false);
+      return;
+    }
+    setProfileLoading(true);
+    fetchMe(token)
+      .then((u) => {
+        setDisplayName(u.display_name);
+        setEmail(u.email);
+        setUserType(u.user_type);
+      })
+      .catch(() => {
+        setDisplayName("");
+        setEmail("");
+        setUserType(null);
+      })
+      .finally(() => setProfileLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
 
   // Close mobile drawer when route changes
   useEffect(() => {
     setIsMobileOpen(false);
   }, [pathname]);
+
+  const handleSignOut = async () => {
+    const token = getStoredToken();
+    await logoutAccount(token);
+    router.push("/login");
+  };
+
+  const avatarLabel = profileLoading
+    ? "…"
+    : initialsFromDisplayName(displayName || email);
+  const primaryLine = profileLoading ? "…" : displayName || email || "Account";
+  const secondaryLine = profileLoading ? "…" : profileRoleLabel(userType) || email;
 
   const menuItems = [
     { icon: LayoutDashboard, label: "Dashboard", href: "/app/dashboard" },
@@ -91,26 +164,30 @@ export default function Sidebar() {
             <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'}`}>
               <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-accent to-brand-500 p-0.5 shrink-0 shadow-lg shadow-brand-500/20">
                 <div className="w-full h-full bg-slate-900 rounded-full flex items-center justify-center border-2 border-slate-900">
-                  <span className="text-xs font-bold text-white tracking-wider">JD</span>
+                  <span className="text-xs font-bold text-white tracking-wider" aria-hidden>
+                    {avatarLabel}
+                  </span>
                 </div>
               </div>
               {(!collapsed || isMobile) && (
-                <div className="overflow-hidden">
-                  <p className="text-sm font-medium text-white truncate">Jane Doe</p>
-                  <p className="text-xs text-brand-300/80 truncate">Premium User</p>
+                <div className="overflow-hidden min-w-0">
+                  <p className="text-sm font-medium text-white truncate">{primaryLine}</p>
+                  <p className="text-xs text-brand-300/80 truncate">{secondaryLine}</p>
                 </div>
               )}
             </div>
           </div>
 
-          <Link href="/" className="group block">
-            <div className={`w-full flex items-center ${collapsed ? 'justify-center p-3' : 'gap-3 px-4 py-3'} rounded-xl text-sm font-medium text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors border border-transparent hover:border-red-500/20`}>
-              <LogOut className="w-5 h-5 shrink-0 group-hover:scale-110 transition-transform" />
-              {(!collapsed || isMobile) && (
-                <span className="whitespace-nowrap">Sign Out</span>
-              )}
-            </div>
-          </Link>
+          <button
+            type="button"
+            onClick={() => void handleSignOut()}
+            className={`group w-full flex items-center ${collapsed ? 'justify-center p-3' : 'gap-3 px-4 py-3'} rounded-xl text-sm font-medium text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors border border-transparent hover:border-red-500/20 text-left`}
+          >
+            <LogOut className="w-5 h-5 shrink-0 group-hover:scale-110 transition-transform" aria-hidden />
+            {(!collapsed || isMobile) && (
+              <span className="whitespace-nowrap">Sign Out</span>
+            )}
+          </button>
         </div>
       </>
     );
