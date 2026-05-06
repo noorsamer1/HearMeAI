@@ -1,11 +1,10 @@
 "use client";
 
 import { useCallback, useRef } from "react";
-import { Send, Volume2, Trash2, Languages } from "lucide-react";
+import { Send, Volume2, Trash2 } from "lucide-react";
 import { clsx } from "clsx";
 import { useSessionStore } from "@/lib/state/sessionStore";
 import { MicButton } from "@/components/audio/MicButton";
-import { Button } from "@/components/common/Button";
 import { useTranslations } from "@/lib/i18n";
 import { showToast } from "@/components/common/Toast";
 
@@ -26,9 +25,7 @@ export function ControlDock({ onSendText, onAudioChunk, onAudioStop }: ControlDo
       if (!text) return;
       onSendText(text, requestTTS);
       setInputText("");
-      if (textareaRef.current) {
-        textareaRef.current.style.height = "auto";
-      }
+      if (textareaRef.current) textareaRef.current.style.height = "auto";
     },
     [inputText, onSendText, setInputText]
   );
@@ -42,7 +39,6 @@ export function ControlDock({ onSendText, onAudioChunk, onAudioStop }: ControlDo
 
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputText(e.target.value);
-    // Auto-resize
     e.target.style.height = "auto";
     e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
   };
@@ -52,103 +48,108 @@ export function ControlDock({ onSendText, onAudioChunk, onAudioStop }: ControlDo
     showToast("info", "Conversation cleared");
   };
 
+  const canSend = !!inputText.trim();
+
   return (
-    <div
-      className={clsx(
-        "workspace-subtle-header border-t-0 bg-[var(--color-bg)]/70",
-        "px-4 py-3"
-      )}
-    >
-      <div className="max-w-4xl mx-auto">
-        <div className="flex items-end gap-3">
+    /* Floating glass dock — sits above the message feed */
+    <div className="relative z-20 px-3 sm:px-4 pb-4 pt-2">
+      <div className="max-w-3xl mx-auto">
+        {/* Main pill container */}
+        <div
+          className="flex items-end gap-3 px-3 py-3 rounded-2xl"
+          style={{
+            background: "rgba(12, 18, 32, 0.85)",
+            backdropFilter: "blur(20px) saturate(180%)",
+            WebkitBackdropFilter: "blur(20px) saturate(180%)",
+            border: "1px solid rgba(255,255,255,0.1)",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.05) inset",
+          }}
+        >
           {/* Mic button */}
-          <div className="flex-shrink-0 pb-1">
-            <MicButton
-              onChunk={onAudioChunk}
-              onStop={onAudioStop}
-            />
+          <div className="flex-shrink-0 pb-0.5">
+            <MicButton onChunk={onAudioChunk} onStop={onAudioStop} />
           </div>
 
-          {/* Text input area */}
-          <div className="flex-1 flex flex-col gap-2">
-            <div
-              className={clsx(
-                "flex items-end gap-2 px-4 py-3 rounded-2xl",
-                "workspace-zone-elevated",
-                "focus-within:border-brand-500/60 transition-colors duration-150"
-              )}
-            >
-              <textarea
-                ref={textareaRef}
-                value={inputText}
-                onChange={handleTextareaChange}
-                onKeyDown={handleKeyDown}
-                placeholder={t.controls.placeholder}
-                rows={1}
-                className={clsx(
-                  "flex-1 resize-none bg-transparent outline-none",
-                  "text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]",
-                  "text-[var(--font-size-base)] leading-relaxed",
-                  "max-h-[120px] overflow-y-auto"
-                )}
-                aria-label={t.controls.placeholder}
-                dir={language === "ar" ? "rtl" : "ltr"}
-              />
+          {/* Text input */}
+          <div className="flex-1 flex items-end gap-2 min-w-0">
+            <textarea
+              ref={textareaRef}
+              value={inputText}
+              onChange={handleTextareaChange}
+              onKeyDown={handleKeyDown}
+              placeholder={t.controls.placeholder}
+              rows={1}
+              className="flex-1 resize-none bg-transparent outline-none leading-relaxed max-h-[120px] overflow-y-auto"
+              style={{
+                color: "var(--color-text-primary)",
+                fontSize: "var(--font-size-base)",
+              }}
+              aria-label={t.controls.placeholder}
+              dir={language === "ar" ? "rtl" : "ltr"}
+            />
 
-              {/* Send button */}
-              <Button
-                variant="primary"
-                size="icon"
+            {/* Speak + send */}
+            <div className="flex items-center gap-2 flex-shrink-0 pb-0.5">
+              {/* Speak aloud */}
+              <button
+                onClick={() => handleSend(true)}
+                disabled={!canSend}
+                title={t.controls.speakAloud}
+                aria-label={t.controls.speakAloud}
+                className="flex items-center justify-center w-8 h-8 rounded-xl transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                style={{
+                  background: canSend ? "rgba(52,211,153,0.15)" : "transparent",
+                  border: "1px solid",
+                  borderColor: canSend ? "rgba(52,211,153,0.4)" : "rgba(255,255,255,0.08)",
+                  color: canSend ? "#34D399" : "var(--color-text-muted)",
+                }}
+              >
+                <Volume2 className="w-4 h-4" />
+              </button>
+
+              {/* Send */}
+              <button
                 onClick={() => handleSend(false)}
-                disabled={!inputText.trim()}
-                aria-label={t.controls.sendMessage}
+                disabled={!canSend}
                 title={`${t.controls.send} (Enter)`}
-                className="flex-shrink-0 h-9 w-9"
+                aria-label={t.controls.sendMessage}
+                className="flex items-center justify-center w-9 h-9 rounded-xl font-semibold transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                style={{
+                  background: canSend
+                    ? "linear-gradient(135deg, #22D3EE 0%, #6366F1 100%)"
+                    : "var(--color-surface-raised)",
+                  color: "white",
+                  boxShadow: canSend ? "0 0 16px rgba(34,211,238,0.3)" : "none",
+                }}
               >
                 <Send className="w-4 h-4" />
-              </Button>
-            </div>
-
-            {/* Quick action bar */}
-            <div className="flex items-center gap-2">
-              {/* Speak aloud button */}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleSend(true)}
-                disabled={!inputText.trim()}
-                title={t.controls.speakAloud}
-                className="workspace-chip gap-1.5 text-xs"
-              >
-                <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
-                <span>{t.controls.speakAloud}</span>
-              </Button>
-
-              <div className="flex-1" />
-
-              {/* Keyboard shortcut hint */}
-              <span className="hidden sm:flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
-                <kbd className="px-1.5 py-0.5 rounded bg-white/5 text-[10px] font-mono">Enter</kbd>
-                <span>to send</span>
-                <span>·</span>
-                <kbd className="px-1.5 py-0.5 rounded bg-white/5 text-[10px] font-mono">⇧ Enter</kbd>
-                <span>new line</span>
-              </span>
-
-              {/* Clear button */}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleClear}
-                title={t.controls.clearChat}
-                aria-label={t.controls.clearChat}
-                className="gap-1.5 text-xs text-[var(--color-text-muted)]"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">{t.controls.clearChat}</span>
-              </Button>
+              </button>
             </div>
           </div>
+        </div>
+
+        {/* Hint row */}
+        <div className="flex items-center justify-between mt-2 px-1">
+          <div className="hidden sm:flex items-center gap-1.5" style={{ color: "var(--color-text-muted)" }}>
+            <kbd className="px-1.5 py-0.5 rounded text-[10px] font-mono" style={{ background: "rgba(255,255,255,0.06)" }}>Enter</kbd>
+            <span className="text-[11px]">send</span>
+            <span className="text-[11px] opacity-50">·</span>
+            <kbd className="px-1.5 py-0.5 rounded text-[10px] font-mono" style={{ background: "rgba(255,255,255,0.06)" }}>⇧ Enter</kbd>
+            <span className="text-[11px]">new line</span>
+          </div>
+
+          <button
+            onClick={handleClear}
+            title={t.controls.clearChat}
+            aria-label={t.controls.clearChat}
+            className="flex items-center gap-1 text-[11px] transition-colors duration-150 cursor-pointer ml-auto"
+            style={{ color: "var(--color-text-muted)" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--color-error)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--color-text-muted)"; }}
+          >
+            <Trash2 className="w-3 h-3" />
+            <span className="hidden sm:inline">{t.controls.clearChat}</span>
+          </button>
         </div>
       </div>
     </div>

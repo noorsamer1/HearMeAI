@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowRight, Captions, Hand, Mic } from "lucide-react";
+import { ArrowRight, Captions, Hand, Mic, LogIn } from "lucide-react";
 import { useSafeReducedMotion } from "@/lib/hooks/useSafeReducedMotion";
 
 export default function HeroSection() {
@@ -28,7 +28,7 @@ export default function HeroSection() {
             transition={{ duration: 0.5 }}
             className="inline-flex items-center gap-2 px-3 py-1 rounded-full glass border border-white/10 text-[11px] font-semibold tracking-[0.18em] uppercase text-slate-300"
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-neon-yellow" />
+            <span className="w-1.5 h-1.5 rounded-full bg-warm" />
             AI-Powered · Inclusive Communication
           </motion.span>
 
@@ -54,13 +54,25 @@ export default function HeroSection() {
           <motion.div
             {...fadeUp}
             transition={{ duration: 0.6, delay: 0.25 }}
-            className="mt-10 flex justify-center"
+            className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3"
           >
-            <a href="/app" className="w-full sm:w-auto inline-block">
-              <span className="w-full sm:w-auto px-8 py-4 rounded-full font-medium text-white glass border border-white/10 hover:bg-white/10 transition-colors focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-400/60 flex items-center justify-center gap-2">
-                Try Live Demo
-                <ArrowRight className="w-4 h-4" aria-hidden />
-              </span>
+            <a
+              href="/app"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full font-semibold text-white focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-400/60"
+              style={{
+                background: "linear-gradient(135deg, #22D3EE 0%, #6366F1 100%)",
+                boxShadow: "0 4px 24px rgba(34,211,238,0.35)",
+              }}
+            >
+              Try Live Demo
+              <ArrowRight className="w-4 h-4" aria-hidden />
+            </a>
+            <a
+              href="/auth"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full font-medium text-slate-300 glass border border-white/10 hover:border-white/20 hover:text-white transition-all focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-400/60"
+            >
+              <LogIn className="w-4 h-4" aria-hidden />
+              Sign In
             </a>
           </motion.div>
 
@@ -97,7 +109,7 @@ function BackgroundField({ reduceMotion }: { reduceMotion: boolean }) {
         }`}
       />
       <div
-        className={`${blobBase} bottom-1/4 left-1/2 w-80 h-80 bg-neon-blue/20 blur-[100px] ${
+        className={`${blobBase} bottom-1/4 left-1/2 w-80 h-80 bg-brand-400/20 blur-[100px] ${
           reduceMotion ? "" : "animate-blob animation-delay-4000"
         }`}
       />

@@ -1,91 +1,126 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Wifi, WifiOff, Mic, Brain, Volume2, Circle } from "lucide-react";
-import { clsx } from "clsx";
+import { Wifi, WifiOff, Mic, Brain, Volume2 } from "lucide-react";
 import { useSessionStore, SystemStatus } from "@/lib/state/sessionStore";
 import { useTranslations } from "@/lib/i18n";
 
-const statusConfig: Record<
-  SystemStatus,
-  { icon: React.ElementType; colorClass: string; bgClass: string; pulses?: boolean }
-> = {
-  idle: {
-    icon: Circle,
-    colorClass: "text-gray-400",
-    bgClass: "bg-gray-500/10",
-  },
-  listening: {
-    icon: Mic,
-    colorClass: "text-blue-400",
-    bgClass: "bg-blue-500/15",
-    pulses: true,
-  },
-  processing: {
-    icon: Brain,
-    colorClass: "text-violet-400",
-    bgClass: "bg-violet-500/15",
-    pulses: true,
-  },
-  speaking: {
-    icon: Volume2,
-    colorClass: "text-emerald-400",
-    bgClass: "bg-emerald-500/15",
-    pulses: true,
-  },
+type StatusMeta = {
+  icon: React.ElementType;
+  label: string;
+  dotColor: string;
+  bg: string;
+  border: string;
+  textColor: string;
+  pulse?: boolean;
 };
+
+function useStatusConfig(status: SystemStatus, t: ReturnType<typeof useTranslations>): StatusMeta {
+  switch (status) {
+    case "listening":
+      return {
+        icon: Mic,
+        label: t.status.listening,
+        dotColor: "#22D3EE",
+        bg: "rgba(34,211,238,0.1)",
+        border: "rgba(34,211,238,0.35)",
+        textColor: "#67E8F9",
+        pulse: true,
+      };
+    case "processing":
+      return {
+        icon: Brain,
+        label: t.status.processing,
+        dotColor: "#A78BFA",
+        bg: "rgba(167,139,250,0.1)",
+        border: "rgba(167,139,250,0.35)",
+        textColor: "#C4B5FD",
+        pulse: true,
+      };
+    case "speaking":
+      return {
+        icon: Volume2,
+        label: t.status.speaking,
+        dotColor: "#34D399",
+        bg: "rgba(52,211,153,0.1)",
+        border: "rgba(52,211,153,0.35)",
+        textColor: "#6EE7B7",
+        pulse: true,
+      };
+    default:
+      return {
+        icon: Wifi,
+        label: "Ready",
+        dotColor: "#475569",
+        bg: "rgba(71,85,105,0.1)",
+        border: "rgba(71,85,105,0.25)",
+        textColor: "#94A3B8",
+      };
+  }
+}
 
 export function StatusRail() {
   const { systemStatus, isConnected, language } = useSessionStore();
   const t = useTranslations(language);
-  const config = statusConfig[systemStatus];
-  const Icon = config.icon;
-
-  const statusLabel: Record<SystemStatus, string> = {
-    idle: t.status.idle,
-    listening: t.status.listening,
-    processing: t.status.processing,
-    speaking: t.status.speaking,
-  };
+  const meta = useStatusConfig(systemStatus, t);
+  const StatusIcon = meta.icon;
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2" role="status" aria-live="polite">
+      {/* Connection pill */}
       <div
-        className={clsx(
-          "workspace-chip gap-1.5 px-2.5 py-1",
-          isConnected
-            ? "border-emerald-500/35 bg-emerald-500/12 text-emerald-300"
-            : "border-rose-500/35 bg-rose-500/12 text-rose-300"
-        )}
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium"
+        style={{
+          background: isConnected ? "rgba(52,211,153,0.1)" : "rgba(248,113,113,0.1)",
+          border: "1px solid",
+          borderColor: isConnected ? "rgba(52,211,153,0.35)" : "rgba(248,113,113,0.35)",
+          color: isConnected ? "#6EE7B7" : "#FCA5A5",
+        }}
+        aria-label={isConnected ? "Connected" : "Reconnecting"}
       >
+        <span
+          className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+          style={{
+            background: isConnected ? "#34D399" : "#F87171",
+            animation: isConnected ? "none" : "pulse 1.5s ease-in-out infinite",
+          }}
+        />
         {isConnected ? (
-          <Wifi className="w-3.5 h-3.5" aria-hidden />
+          <Wifi className="w-3 h-3 hidden sm:block" aria-hidden />
         ) : (
-          <WifiOff className="w-3.5 h-3.5 animate-pulse" aria-hidden />
+          <WifiOff className="w-3 h-3 hidden sm:block" aria-hidden />
         )}
-        <span className="hidden sm:inline">{isConnected ? "Connected" : "Offline"}</span>
+        <span className="hidden sm:inline">
+          {isConnected ? "Live" : "Reconnecting…"}
+        </span>
       </div>
 
+      {/* System status pill */}
       <AnimatePresence mode="wait">
         <motion.div
           key={systemStatus}
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.9 }}
-          transition={{ duration: 0.15 }}
-          className={clsx(
-            "workspace-chip gap-1.5 px-2.5 py-1 text-xs",
-            config.colorClass
-          )}
-          role="status"
-          aria-live="polite"
-          aria-label={`Status: ${statusLabel[systemStatus]}`}
+          initial={{ opacity: 0, scale: 0.88, y: -4 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.88, y: 4 }}
+          transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium"
+          style={{
+            background: meta.bg,
+            border: "1px solid",
+            borderColor: meta.border,
+            color: meta.textColor,
+          }}
+          aria-label={`Status: ${meta.label}`}
         >
-          <Icon
-            className={clsx("w-3.5 h-3.5", config.pulses && "animate-pulse")}
-            aria-hidden
+          <span
+            className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+            style={{
+              background: meta.dotColor,
+              animation: meta.pulse ? "pulse 1.4s ease-in-out infinite" : "none",
+            }}
           />
-          <span>{systemStatus === "idle" ? "Ready" : statusLabel[systemStatus]}</span>
+          <StatusIcon className="w-3 h-3 hidden sm:block" aria-hidden />
+          <span>{meta.label}</span>
         </motion.div>
       </AnimatePresence>
     </div>

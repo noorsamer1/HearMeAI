@@ -124,23 +124,27 @@ export async function checkHealth(): Promise<{ status: string; version: string }
 
 // ── Base64 audio → Blob ───────────────────────────────────────
 export function base64ToAudioUrl(base64: string, mimeType = "audio/mpeg"): string {
-  const binaryStr = atob(base64);
-  const bytes = new Uint8Array(binaryStr.length);
-  for (let i = 0; i < binaryStr.length; i++) {
-    bytes[i] = binaryStr.charCodeAt(i);
+  try {
+    const binaryStr = atob(base64);
+    const bytes = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) {
+      bytes[i] = binaryStr.charCodeAt(i);
+    }
+    // Auto-detect container so fallback TTS (WAV) still plays correctly.
+    const looksLikeWav =
+      bytes.length >= 12 &&
+      bytes[0] === 0x52 && // R
+      bytes[1] === 0x49 && // I
+      bytes[2] === 0x46 && // F
+      bytes[3] === 0x46 && // F
+      bytes[8] === 0x57 && // W
+      bytes[9] === 0x41 && // A
+      bytes[10] === 0x56 && // V
+      bytes[11] === 0x45; // E
+    const resolvedMime = looksLikeWav ? "audio/wav" : mimeType;
+    const blob = new Blob([bytes], { type: resolvedMime });
+    return URL.createObjectURL(blob);
+  } catch {
+    return "";
   }
-  // Auto-detect container so fallback TTS (WAV) still plays correctly.
-  const looksLikeWav =
-    bytes.length >= 12 &&
-    bytes[0] === 0x52 && // R
-    bytes[1] === 0x49 && // I
-    bytes[2] === 0x46 && // F
-    bytes[3] === 0x46 && // F
-    bytes[8] === 0x57 && // W
-    bytes[9] === 0x41 && // A
-    bytes[10] === 0x56 && // V
-    bytes[11] === 0x45; // E
-  const resolvedMime = looksLikeWav ? "audio/wav" : mimeType;
-  const blob = new Blob([bytes], { type: resolvedMime });
-  return URL.createObjectURL(blob);
 }

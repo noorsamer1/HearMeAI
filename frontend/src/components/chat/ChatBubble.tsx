@@ -6,8 +6,6 @@ import { Copy, Check, Sparkles, HelpCircle, Languages, Volume2 } from "lucide-re
 import { clsx } from "clsx";
 import { ChatMessage } from "@/lib/state/sessionStore";
 import { useSessionStore } from "@/lib/state/sessionStore";
-import { Badge } from "@/components/common/Badge";
-import { Button } from "@/components/common/Button";
 import { useTranslations } from "@/lib/i18n";
 import { showToast } from "@/components/common/Toast";
 import { base64ToAudioUrl, synthesizeSpeech } from "@/lib/api/client";
@@ -32,64 +30,33 @@ type Segment =
   | { type: "text"; value: string }
   | { type: "emote"; value: string; descriptor: EmoteDescriptor };
 
-const DEFAULT_EMOTE: EmoteDescriptor = {
-  emoji: "✨",
-  label: "emote",
-  motion: "pulse",
-};
+const DEFAULT_EMOTE: EmoteDescriptor = { emoji: "✨", label: "emote", motion: "pulse" };
 
 function resolveEmote(raw: string): EmoteDescriptor {
-  const normalized = raw.trim().toLowerCase();
-
-  if (/(wave|hello|hi|greet|salam|salam|مرحب|اهلا|أهلا|السلام)/i.test(normalized)) {
-    return { emoji: "👋", label: "wave", motion: "wave" };
-  }
-  if (/(laugh|lol|haha|ضحك|يضحك)/i.test(normalized)) {
-    return { emoji: "😂", label: "laugh", motion: "pop" };
-  }
-  if (/(smile|happy|joy|سعيد|ابتسام)/i.test(normalized)) {
-    return { emoji: "😊", label: "smile", motion: "pulse" };
-  }
-  if (/(sad|sorry|حزين|اسف|آسف)/i.test(normalized)) {
-    return { emoji: "😔", label: "sad", motion: "pulse" };
-  }
-  if (/(thumb|great|good job|ممتاز|رائع|تمام|اوكي|أوكي)/i.test(normalized)) {
-    return { emoji: "👍", label: "thumbs up", motion: "nod" };
-  }
-  if (/(clap|bravo|تصفيق|أحسنت|احسنت)/i.test(normalized)) {
-    return { emoji: "👏", label: "clap", motion: "pop" };
-  }
-  if (/(think|hmm|تفكير|أفكر|افكر)/i.test(normalized)) {
-    return { emoji: "🤔", label: "think", motion: "nod" };
-  }
-  if (/(heart|love|حب|قلبي)/i.test(normalized)) {
-    return { emoji: "❤️", label: "love", motion: "pulse" };
-  }
-  if (/(shrug|idk|ما ادري|ما أدري|مش عارف)/i.test(normalized)) {
-    return { emoji: "🤷", label: "shrug", motion: "nod" };
-  }
-
+  const n = raw.trim().toLowerCase();
+  if (/(wave|hello|hi|greet|salam|مرحب|اهلا|أهلا|السلام)/i.test(n))   return { emoji: "👋", label: "wave", motion: "wave" };
+  if (/(laugh|lol|haha|ضحك|يضحك)/i.test(n))                            return { emoji: "😂", label: "laugh", motion: "pop" };
+  if (/(smile|happy|joy|سعيد|ابتسام)/i.test(n))                        return { emoji: "😊", label: "smile", motion: "pulse" };
+  if (/(sad|sorry|حزين|اسف|آسف)/i.test(n))                             return { emoji: "😔", label: "sad", motion: "pulse" };
+  if (/(thumb|great|good job|ممتاز|رائع|تمام|اوكي|أوكي)/i.test(n))    return { emoji: "👍", label: "thumbs up", motion: "nod" };
+  if (/(clap|bravo|تصفيق|أحسنت|احسنت)/i.test(n))                      return { emoji: "👏", label: "clap", motion: "pop" };
+  if (/(think|hmm|تفكير|أفكر|افكر)/i.test(n))                         return { emoji: "🤔", label: "think", motion: "nod" };
+  if (/(heart|love|حب|قلبي)/i.test(n))                                 return { emoji: "❤️", label: "love", motion: "pulse" };
+  if (/(shrug|idk|ما ادري|ما أدري|مش عارف)/i.test(n))                 return { emoji: "🤷", label: "shrug", motion: "nod" };
   return DEFAULT_EMOTE;
 }
 
 function parseSegments(text: string): Segment[] {
-  const chunks = text.split(/(\*[^*\n]+\*)/g);
-  return chunks
-    .filter((chunk) => chunk.length > 0)
+  return text
+    .split(/(\*[^*\n]+\*)/g)
+    .filter((c) => c.length > 0)
     .map((chunk): Segment => {
       const isEmote =
-        chunk.startsWith("*") &&
-        chunk.endsWith("*") &&
-        chunk.length > 2 &&
-        !chunk.startsWith("**") &&
-        !chunk.endsWith("**");
+        chunk.startsWith("*") && chunk.endsWith("*") &&
+        chunk.length > 2 && !chunk.startsWith("**");
       if (!isEmote) return { type: "text", value: chunk };
-      const emoteText = chunk.slice(1, -1).trim();
-      return {
-        type: "emote",
-        value: emoteText,
-        descriptor: resolveEmote(emoteText),
-      };
+      const raw = chunk.slice(1, -1).trim();
+      return { type: "emote", value: raw, descriptor: resolveEmote(raw) };
     });
 }
 
@@ -100,10 +67,11 @@ export function ChatBubble({ message, onAction }: ChatBubbleProps) {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const segments = useMemo(() => parseSegments(message.text), [message.text]);
 
-  const isUser = message.role === "user";
+  const isUser       = message.role === "user";
   const isTranscript = message.role === "transcript";
-  const isAssistant = message.role === "assistant";
+  const isAssistant  = message.role === "assistant";
   const isActionResult = message.role === "action-result";
+  const isAiType     = isAssistant || isActionResult;
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(message.text);
@@ -117,13 +85,20 @@ export function ChatBubble({ message, onAction }: ChatBubbleProps) {
     try {
       const result = await synthesizeSpeech(message.text, language);
       const url = base64ToAudioUrl(result.audio_base64);
+      if (!url) {
+        showToast("error", t.errors.ttsFailed);
+        setIsSpeaking(false);
+        return;
+      }
       const audio = new Audio(url);
-      audio.onended = () => {
+      audio.onended = () => { setIsSpeaking(false); URL.revokeObjectURL(url); };
+      audio.onerror = () => { setIsSpeaking(false); };
+      audio.play().catch((err) => {
+        console.error("[TTS] play failed", err);
+        showToast("error", t.errors.ttsFailed);
         setIsSpeaking(false);
         URL.revokeObjectURL(url);
-      };
-      audio.onerror = () => setIsSpeaking(false);
-      await audio.play();
+      });
     } catch {
       showToast("error", t.errors.ttsFailed);
       setIsSpeaking(false);
@@ -132,203 +107,248 @@ export function ChatBubble({ message, onAction }: ChatBubbleProps) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 6 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2 }}
+      transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
       className={clsx(
-        "group flex gap-3 max-w-[88%]",
+        "group flex gap-2.5 max-w-[85%] sm:max-w-[78%]",
         isUser ? "self-end flex-row-reverse" : "self-start"
       )}
     >
-      {/* Avatar dot */}
+      {/* ── Avatar ── */}
       <div
         className={clsx(
-          "flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold mt-1",
-          isUser && "bg-brand-600 text-white",
-          isTranscript && "bg-blue-600 text-white",
-          (isAssistant || isActionResult) && "bg-violet-700 text-white"
+          "flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center text-[10px] font-bold mt-0.5 shadow-sm",
+          isUser        && "avatar-user shadow-glow-sm-cyan",
+          isTranscript  && "avatar-transcript",
+          isAiType      && "avatar-ai shadow-glow-sm-violet"
         )}
         aria-hidden
       >
-        {isUser ? "Y" : isTranscript ? "T" : "AI"}
+        {isUser ? "You" : isTranscript ? "STT" : "AI"}
       </div>
 
-      <div className="flex flex-col gap-1.5 min-w-0">
+      {/* ── Content column ── */}
+      <div className={clsx("flex flex-col gap-1 min-w-0", isUser && "items-end")}>
+
         {/* Label row */}
         <div
           className={clsx(
-            "flex items-center gap-1.5 text-[11px] text-[var(--color-text-muted)]",
+            "flex items-center gap-1.5 flex-wrap",
             isUser && "flex-row-reverse"
           )}
         >
-          <span className="font-medium">
-            {isUser
-              ? t.chat.you
-              : isTranscript
-              ? t.chat.transcript
-              : t.chat.assistant}
+          <span
+            className="text-[11px] font-semibold"
+            style={{ color: isUser ? "var(--color-brand)" : isAiType ? "var(--color-accent)" : "var(--color-text-secondary)" }}
+          >
+            {isUser ? t.chat.you : isTranscript ? t.chat.transcript : t.chat.assistant}
           </span>
 
           {isTranscript && message.confidence !== undefined && (
-            <Badge variant={message.confidence > 0.85 ? "success" : "warning"}>
+            <span className={clsx("pill text-[10px]", message.confidence > 0.85 ? "pill-green" : "pill-amber")}>
               {Math.round(message.confidence * 100)}%
-            </Badge>
+            </span>
           )}
 
           {message.detectedLang && (
-            <Badge variant="info">{message.detectedLang.toUpperCase()}</Badge>
+            <span className="pill pill-cyan text-[10px]">{message.detectedLang.toUpperCase()}</span>
           )}
 
           {message.action && (
-            <Badge variant="processing">
-              {message.action === "simplify"
-                ? "Simplified"
-                : message.action === "clarify"
-                ? "Clarified"
-                : "Translated"}
-            </Badge>
+            <span className="pill pill-violet text-[10px]">
+              {message.action === "simplify" ? "Simplified" : message.action === "clarify" ? "Clarified" : "Translated"}
+            </span>
           )}
 
-          {message.fromPeer && <Badge variant="info">Peer</Badge>}
+          {message.fromPeer && <span className="pill pill-amber text-[10px]">Peer</span>}
 
-          <span className="opacity-80">{formatTime(message.timestamp)}</span>
+          <span className="text-[10px]" style={{ color: "var(--color-text-muted)" }}>
+            {formatTime(message.timestamp)}
+          </span>
         </div>
 
-        {/* Bubble */}
+        {/* ── Bubble ── */}
         <div
           className={clsx(
-            "relative px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-[0_12px_30px_-28px_rgba(0,0,0,0.9)]",
-            "transition-all duration-150",
-            isUser &&
-              "bg-brand-600 text-white rounded-tr-sm border border-brand-400/30",
-            isTranscript &&
-              "bg-blue-600/12 border border-blue-500/25 text-[var(--color-text-primary)] rounded-tl-sm",
-            (isAssistant || isActionResult) &&
-              "bg-surface-raised border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-tl-sm",
-            message.isPartial && "opacity-80"
+            "relative px-4 py-3 text-sm leading-relaxed transition-all duration-150",
+            isUser       && "bubble-user",
+            isTranscript && "bubble-transcript",
+            isAiType     && "bubble-ai",
+            message.isPartial && "opacity-75"
           )}
         >
+          {/* Text content */}
           <p className="emoji-text whitespace-pre-wrap break-words">
-            {segments.map((segment, index) => {
-              if (segment.type === "text") {
-                return <Fragment key={`txt-${message.id}-${index}`}>{segment.value}</Fragment>;
+            {segments.map((seg, i) => {
+              if (seg.type === "text") {
+                return <Fragment key={`t-${message.id}-${i}`}>{seg.value}</Fragment>;
               }
               return (
                 <span
-                  key={`emo-${message.id}-${index}`}
+                  key={`e-${message.id}-${i}`}
                   className="emote-chip"
-                  title={`*${segment.value}*`}
-                  aria-label={`${segment.descriptor.label} emote`}
+                  title={`*${seg.value}*`}
+                  aria-label={`${seg.descriptor.label} emote`}
                 >
                   <span
                     role="img"
                     aria-hidden
                     className={clsx(
                       "emote-emoji",
-                      segment.descriptor.motion === "wave" && "animate-emote-wave",
-                      segment.descriptor.motion === "pulse" && "animate-emote-pulse",
-                      segment.descriptor.motion === "pop" && "animate-emote-pop",
-                      segment.descriptor.motion === "nod" && "animate-emote-nod"
+                      seg.descriptor.motion === "wave"  && "animate-emote-wave",
+                      seg.descriptor.motion === "pulse" && "animate-emote-pulse",
+                      seg.descriptor.motion === "pop"   && "animate-emote-pop",
+                      seg.descriptor.motion === "nod"   && "animate-emote-nod"
                     )}
                   >
-                    {segment.descriptor.emoji}
+                    {seg.descriptor.emoji}
                   </span>
-                  <span className="emote-label">{segment.value}</span>
+                  <span className="emote-label">{seg.value}</span>
                 </span>
               );
             })}
           </p>
 
+          {/* Streaming dots */}
           {message.isPartial && (
-            <span className="inline-flex ml-1 gap-0.5">
+            <span className="inline-flex items-end gap-0.5 ml-1.5 mb-0.5" aria-label="Typing">
               {[0, 1, 2].map((i) => (
                 <span
                   key={i}
-                  className="w-1 h-1 rounded-full bg-current opacity-60 animate-bounce"
-                  style={{ animationDelay: `${i * 0.15}s` }}
+                  className="w-1 h-1 rounded-full animate-typing-dot"
+                  style={{
+                    background: isUser ? "rgba(255,255,255,0.7)" : "var(--color-brand)",
+                    animationDelay: `${i * 0.2}s`,
+                  }}
                 />
               ))}
             </span>
           )}
 
-          {!message.isPartial && !isUser && (
-            <div className="mt-3 flex flex-wrap items-center gap-1.5">
-              <Button
-                size="sm"
-                variant="ghost"
+          {/* AI action chips — inside bubble, below text */}
+          {!message.isPartial && isAiType && (
+            <div className="flex flex-wrap gap-1.5 mt-3 pt-3" style={{ borderTop: "1px solid var(--color-border)" }}>
+              <button
                 onClick={() => onAction("simplify", message.text, message.id)}
                 title={t.actions.simplifyHint}
                 aria-label={t.actions.simplify}
-                className="h-7 px-2 gap-1 workspace-chip"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all duration-150 cursor-pointer"
+                style={{
+                  background: "rgba(167,139,250,0.1)",
+                  border: "1px solid rgba(167,139,250,0.25)",
+                  color: "#C4B5FD",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(167,139,250,0.2)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(167,139,250,0.1)";
+                }}
               >
-                <Sparkles className="w-3.5 h-3.5 text-violet-300" />
-                <span className="text-xs">{t.actions.simplify}</span>
-              </Button>
+                <Sparkles className="w-3 h-3" />
+                {t.actions.simplify}
+              </button>
 
-              <Button
-                size="sm"
-                variant="ghost"
+              <button
                 onClick={() => onAction("clarify", message.text, message.id)}
                 title={t.actions.clarifyHint}
                 aria-label={t.actions.clarify}
-                className="h-7 px-2 gap-1 workspace-chip"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all duration-150 cursor-pointer"
+                style={{
+                  background: "rgba(167,139,250,0.1)",
+                  border: "1px solid rgba(167,139,250,0.25)",
+                  color: "#C4B5FD",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(167,139,250,0.2)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(167,139,250,0.1)";
+                }}
               >
-                <HelpCircle className="w-3.5 h-3.5 text-violet-300" />
-                <span className="text-xs">{t.actions.clarify}</span>
-              </Button>
+                <HelpCircle className="w-3 h-3" />
+                {t.actions.clarify}
+              </button>
 
-              <Button
-                size="sm"
-                variant="ghost"
+              <button
                 onClick={() => onAction("translate", message.text, message.id)}
                 title={t.actions.translateHint}
                 aria-label={t.actions.translate}
-                className="h-7 px-2 gap-1 workspace-chip"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all duration-150 cursor-pointer"
+                style={{
+                  background: "rgba(167,139,250,0.1)",
+                  border: "1px solid rgba(167,139,250,0.25)",
+                  color: "#C4B5FD",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(167,139,250,0.2)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(167,139,250,0.1)";
+                }}
               >
-                <Languages className="w-3.5 h-3.5 text-violet-300" />
-                <span className="text-xs">{t.actions.translate}</span>
-              </Button>
+                <Languages className="w-3 h-3" />
+                {t.actions.translate}
+              </button>
             </div>
           )}
         </div>
 
-        {/* Action toolbar */}
+        {/* ── Utility toolbar (copy + speak) — fades in on hover ── */}
         {!message.isPartial && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className={clsx(
-              "flex items-center gap-1.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity",
+              "flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150",
               isUser && "flex-row-reverse"
             )}
           >
-            <Button
-              size="sm"
-              variant="ghost"
+            <button
               onClick={handleCopy}
               title={t.actions.copy}
               aria-label={t.actions.copy}
-              className="h-7 px-2"
+              className="flex items-center justify-center w-6 h-6 rounded-lg cursor-pointer transition-all duration-150"
+              style={{ color: "var(--color-text-muted)" }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.color = "var(--color-text-primary)";
+                (e.currentTarget as HTMLButtonElement).style.background = "var(--color-surface-raised)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.color = "var(--color-text-muted)";
+                (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+              }}
             >
               {copied ? (
-                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                <Check className="w-3.5 h-3.5" style={{ color: "var(--color-success)" }} />
               ) : (
                 <Copy className="w-3.5 h-3.5" />
               )}
-            </Button>
+            </button>
 
-            <Button
-              size="sm"
-              variant="ghost"
+            <button
               onClick={handleSpeak}
               title={t.actions.speakThis}
               aria-label={t.actions.speakThis}
-              className="h-7 px-2"
               disabled={isSpeaking}
+              className="flex items-center justify-center w-6 h-6 rounded-lg cursor-pointer transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ color: isSpeaking ? "var(--color-success)" : "var(--color-text-muted)" }}
+              onMouseEnter={(e) => {
+                if (isSpeaking) return;
+                (e.currentTarget as HTMLButtonElement).style.color = "var(--color-text-primary)";
+                (e.currentTarget as HTMLButtonElement).style.background = "var(--color-surface-raised)";
+              }}
+              onMouseLeave={(e) => {
+                if (isSpeaking) return;
+                (e.currentTarget as HTMLButtonElement).style.color = "var(--color-text-muted)";
+                (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+              }}
             >
-              <Volume2 className={clsx("w-3.5 h-3.5", isSpeaking && "text-emerald-400 animate-pulse")} />
-            </Button>
-
+              <Volume2
+                className={clsx("w-3.5 h-3.5", isSpeaking && "animate-pulse")}
+              />
+            </button>
           </motion.div>
         )}
       </div>

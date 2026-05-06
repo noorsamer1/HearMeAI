@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { SessionWebSocket, WSStatus } from "@/lib/api/websocket";
 import { base64ToAudioUrl } from "@/lib/api/client";
+import { showToast } from "@/components/common/Toast";
 import type { SignPose } from "@/lib/state/sessionStore";
 import { useSessionStore } from "@/lib/state/sessionStore";
 
@@ -76,9 +77,14 @@ export function useSession(opts: UseSessionOptions = {}) {
 
   const handleWSStatus = useCallback(
     (status: WSStatus) => {
-      setIsConnected(status === "connected");
+      const connected = status === "connected";
+      setIsConnected(connected);
+      if (status === "disconnected") {
+        showToast("error", "Connection lost — reconnecting…");
+        setSystemStatus("idle");
+      }
     },
-    [setIsConnected]
+    [setIsConnected, setSystemStatus]
   );
 
   useEffect(() => {
@@ -167,11 +173,20 @@ export function useSession(opts: UseSessionOptions = {}) {
     // ── TTS ready ─────────────────────────────────────────────
     ws.on("tts_ready", (e) => {
       const audioUrl = base64ToAudioUrl(e.audio as string);
+      if (!audioUrl) {
+        showToast("error", "Audio playback failed — invalid audio data");
+        return;
+      }
       const audio = new Audio(audioUrl);
       const msgId = e.messageId as string;
 
       setActiveAudioId(msgId);
-      audio.play().catch(() => {});
+      audio.play().catch((err) => {
+        console.error("[TTS] play failed", err);
+        showToast("error", "Audio playback failed");
+        setActiveAudioId(null);
+        URL.revokeObjectURL(audioUrl);
+      });
       audio.onended = () => {
         setActiveAudioId(null);
         URL.revokeObjectURL(audioUrl);

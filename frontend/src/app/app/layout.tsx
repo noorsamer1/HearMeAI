@@ -6,7 +6,7 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex h-screen bg-slate-950 text-slate-50 overflow-hidden selection:bg-brand-500/30">
+    <div className="flex h-screen overflow-hidden selection:bg-brand-500/30" style={{ backgroundColor: "var(--color-bg)", color: "var(--color-text-primary)" }}>
       <Sidebar />
       <main className="flex-1 min-w-0 relative h-full flex flex-col">
         {/* Ambient App Background */}

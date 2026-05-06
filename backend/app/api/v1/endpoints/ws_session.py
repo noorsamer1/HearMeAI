@@ -4,6 +4,7 @@ WebSocket session: legacy single-client mode (no token) or authenticated multi-p
 Query: ?token=<ws_ticket_jwt> for DB-backed sessions (see POST /sessions/{id}/ws-ticket).
 """
 
+import asyncio
 import base64
 import json
 import re
@@ -123,14 +124,22 @@ def _artifact_motion_plan(text: str, lang: str) -> dict | None:
 async def _stream_llm(llm, messages: list, message_id: str, send_fn) -> str:
     full_text = ""
     try:
-        async for token in llm.stream_chat(messages):
-            full_text += token
-            await send_fn({"type": "ai_partial", "text": full_text, "messageId": message_id})
+        async def _do_stream():
+            nonlocal full_text
+            async for token in llm.stream_chat(messages):
+                full_text += token
+                await send_fn({"type": "ai_partial", "text": full_text, "messageId": message_id})
 
+        await asyncio.wait_for(_do_stream(), timeout=60.0)
         await send_fn({"type": "ai_final", "text": full_text.strip(), "messageId": message_id})
+    except asyncio.TimeoutError:
+        logger.error("LLM stream timed out", message_id=message_id)
+        await send_fn({"type": "error", "message": "AI response timed out", "code": "llm_timeout"})
+        await send_fn({"type": "ai_final", "text": full_text.strip(), "messageId": message_id, "error": True})
     except Exception as exc:
         logger.error("LLM stream error", error=str(exc))
         await send_fn({"type": "error", "message": "AI response failed", "code": "llm_error"})
+        await send_fn({"type": "ai_final", "text": full_text.strip(), "messageId": message_id, "error": True})
 
     return full_text.strip()
 

@@ -21,7 +21,7 @@ export function LiveCaptionPanel() {
       className={clsx(
         "workspace-divider-left flex flex-col",
         "bg-surface-raised/40 backdrop-blur-md",
-        "w-80 xl:w-96 flex-shrink-0"
+        "w-64 md:w-72 lg:w-80 xl:w-96 flex-shrink-0"
       )}
       aria-label={t.captions.title}
     >

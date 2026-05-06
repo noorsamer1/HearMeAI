@@ -10,9 +10,13 @@ import {
   CircleAlert,
   Compass,
   DoorOpen,
+  Ear,
+  MessageSquare,
+  Mic2,
   Sparkles,
   Users,
   X,
+  Zap,
 } from "lucide-react";
 import { getStoredToken } from "@/lib/api/client";
 import { fetchMe, logoutAccount } from "@/lib/api/authApi";
@@ -46,6 +50,7 @@ export default function LobbyPage() {
   const [recentSession, setRecentSession] = useState<RecentSession | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
+  const [showDemoGuide, setShowDemoGuide] = useState(true);
   const [inviteTouched, setInviteTouched] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const createSectionRef = useRef<HTMLElement | null>(null);
@@ -347,6 +352,63 @@ export default function LobbyPage() {
                 Got it
                 <ArrowRightCircle className="w-4 h-4" />
               </button>
+            </div>
+          </section>
+        )}
+
+        {/* ── Live Demo Guide ──────────────────────────────────── */}
+        {showDemoGuide && (
+          <section className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 sm:p-5 space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-emerald-300">
+                  <Zap className="w-3.5 h-3.5" />
+                  Live demo — same WiFi setup
+                </p>
+                <h2 className="mt-1 text-base font-semibold text-[var(--color-text-primary)]">
+                  How to run the group demo
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDemoGuide(false)}
+                className="rounded-lg p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+                aria-label="Dismiss demo guide"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Steps */}
+            <ol className="space-y-1.5 text-sm text-[var(--color-text-secondary)]">
+              <li className="flex items-start gap-2">
+                <span className="mt-0.5 w-5 h-5 rounded-full bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-[10px] font-bold text-emerald-300 flex-shrink-0">1</span>
+                <span><strong className="text-[var(--color-text-primary)]">Person A</strong> clicks <em>Create session</em> → copies the invite code.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="mt-0.5 w-5 h-5 rounded-full bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-[10px] font-bold text-emerald-300 flex-shrink-0">2</span>
+                <span><strong className="text-[var(--color-text-primary)]">Persons B, C, D</strong> enter the code in <em>Join with code</em> → each picks their role below.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="mt-0.5 w-5 h-5 rounded-full bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-[10px] font-bold text-emerald-300 flex-shrink-0">3</span>
+                <span>Everyone clicks <em>Open chat room</em> — the room is now live. All messages appear on all screens.</span>
+              </li>
+            </ol>
+
+            {/* Role cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+              {[
+                { icon: Ear, label: "Deaf", desc: "Sees live captions & sign avatar", color: "text-blue-400", bg: "bg-blue-500/10 border-blue-400/25" },
+                { icon: MessageSquare, label: "Mute", desc: "Types text, hears AI voice", color: "text-violet-400", bg: "bg-violet-500/10 border-violet-400/25" },
+                { icon: Zap, label: "Both", desc: "Captions + text + TTS", color: "text-amber-400", bg: "bg-amber-500/10 border-amber-400/25" },
+                { icon: Mic2, label: "Normal", desc: "Speaks, transcribed live", color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-400/25" },
+              ].map(({ icon: Icon, label, desc, color, bg }) => (
+                <div key={label} className={`rounded-xl border p-3 space-y-1 ${bg}`}>
+                  <Icon className={`w-5 h-5 ${color}`} />
+                  <p className="text-xs font-semibold text-[var(--color-text-primary)]">{label}</p>
+                  <p className="text-[11px] text-[var(--color-text-muted)] leading-snug">{desc}</p>
+                </div>
+              ))}
             </div>
           </section>
         )}

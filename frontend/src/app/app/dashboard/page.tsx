@@ -75,7 +75,7 @@ export default function DashboardPage() {
   return (
     <div className="p-8 md:p-12 w-full h-full overflow-y-auto">
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-12">
-        <h1 className="text-4xl font-heading font-bold mb-3 tracking-tight">Dashboard</h1>
+        <h1 className="text-2xl md:text-3xl lg:text-4xl font-heading font-bold mb-3 tracking-tight">Dashboard</h1>
         <p className="text-slate-400 font-sans text-base leading-relaxed">
           Overview of your sessions and saved activity from the database.
         </p>
@@ -91,7 +91,7 @@ export default function DashboardPage() {
         variants={containerVariants}
         initial="hidden"
         animate="visible"
-        className="grid grid-cols-1 md:grid-cols-3 gap-6"
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
       >
         <motion.div
           variants={itemVariants}
@@ -123,13 +123,13 @@ export default function DashboardPage() {
 
         <motion.div
           variants={itemVariants}
-          className="group relative bg-slate-900/40 backdrop-blur-xl p-8 rounded-[2rem] border border-white/5 overflow-hidden hover:border-neon-green/40 transition-all duration-500 hover:shadow-[0_0_40px_rgba(16,185,129,0.15)] hover:-translate-y-1 cursor-default"
+          className="group relative bg-slate-900/40 backdrop-blur-xl p-8 rounded-[2rem] border border-white/5 overflow-hidden hover:border-[#34D399]/40 transition-all duration-500 hover:shadow-[0_0_40px_rgba(52,211,153,0.15)] hover:-translate-y-1 cursor-default"
         >
-          <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-100 group-hover:scale-110 transition-all duration-700 text-neon-green">
+          <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-100 group-hover:scale-110 transition-all duration-700 text-[#34D399]">
             <FileText className="w-16 h-16 -mr-2 -mt-2 drop-shadow-lg" />
           </div>
           <p className="text-slate-400 text-xs font-bold mb-3 relative z-10 uppercase tracking-[0.2em]">Speech transcripts</p>
-          <div className="text-5xl font-heading font-bold text-slate-100 group-hover:text-neon-green relative z-10 transition-colors duration-500 tracking-tight tabular-nums">
+          <div className="text-5xl font-heading font-bold text-slate-100 group-hover:text-[#34D399] relative z-10 transition-colors duration-500 tracking-tight tabular-nums">
             {loading ? "—" : formatStat(transcripts)}
           </div>
         </motion.div>

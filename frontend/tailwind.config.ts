@@ -10,93 +10,161 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        /* ── shadcn compat ── */
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
-        border: "hsl(var(--border))",
-        input: "hsl(var(--input))",
-        ring: "hsl(var(--ring))",
+        border:     "hsl(var(--border))",
+        input:      "hsl(var(--border))",
+        ring:       "hsl(var(--ring))",
+
+        /* ── Brand: Cyan ── */
         brand: {
-          50: "#e0e7ff",
-          100: "#c7d2fe",
-          200: "#a5b4fc",
-          300: "#818cf8",
-          400: "#6366f1",
-          500: "#4f46e5",
-          600: "#4338ca",
-          700: "#3730a3",
-          800: "#312e81",
-          900: "#1e1b4b",
+          50:  "#ECFEFF",
+          100: "#CFFAFE",
+          200: "#A5F3FC",
+          300: "#67E8F9",
+          400: "#22D3EE",
+          500: "#06B6D4",
+          600: "#0891B2",
+          700: "#0E7490",
+          800: "#155E75",
+          900: "#164E63",
         },
+
+        /* ── Accent: Violet ── */
         accent: {
-          light: "#d8b4fe",
-          DEFAULT: "#a855f7",
-          dark: "#7e22ce",
+          light:   "#C4B5FD",
+          DEFAULT: "#A78BFA",
+          dim:     "#7C3AED",
+          dark:    "#5B21B6",
         },
-        neon: {
-          blue: "#3b82f6",
-          purple: "#8b5cf6",
-          green: "#10b981",
-          yellow: "#f59e0b",
+
+        /* ── Warm: Amber ── */
+        warm: {
+          light:   "#FCD34D",
+          DEFAULT: "#FBBF24",
+          dark:    "#F59E0B",
         },
+
+        /* ── Surfaces ── */
         surface: {
-          DEFAULT: "#0f172a", // slate-900
-          raised: "#1e293b",  // slate-800
-          overlay: "rgba(30, 41, 59, 0.7)",
+          DEFAULT: "#0C1220",
+          raised:  "#111927",
+          overlay: "#172035",
         },
+
+        /* ── Status ── */
         status: {
-          idle: "#64748b",
-          listening: "#3b82f6",
-          processing: "#f59e0b",
-          speaking: "#10b981",
+          idle:       "#475569",
+          listening:  "#22D3EE",
+          processing: "#A78BFA",
+          speaking:   "#34D399",
+        },
+
+        /* ── Kept for backward compat ── */
+        neon: {
+          blue:   "#22D3EE",
+          purple: "#A78BFA",
+          green:  "#34D399",
+          yellow: "#FBBF24",
         },
       },
+
       fontFamily: {
         sans: [
           "var(--font-inter)",
           "\"Segoe UI\"",
-          "\"Segoe UI Emoji\"",
-          "\"Apple Color Emoji\"",
-          "\"Noto Color Emoji\"",
+          "system-ui",
           "sans-serif",
         ],
         heading: [
           "var(--font-outfit)",
           "\"Segoe UI\"",
-          "\"Segoe UI Emoji\"",
-          "\"Apple Color Emoji\"",
-          "\"Noto Color Emoji\"",
+          "system-ui",
           "sans-serif",
         ],
+        mono: [
+          "\"JetBrains Mono\"",
+          "\"Fira Code\"",
+          "\"Cascadia Code\"",
+          "\"Consolas\"",
+          "monospace",
+        ],
       },
+
       animation: {
-        "pulse-slow": "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-        "blob": "blob 7s infinite",
-        waveform: "waveform 1.2s ease-in-out infinite",
-        "typing-dot": "typingDot 1.4s infinite ease-in-out both",
+        "pulse-slow":   "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "blob":         "blob 7s infinite",
+        "waveform":     "waveform 1.2s ease-in-out infinite",
+        "typing-dot":   "typingDot 1.4s infinite ease-in-out both",
+        "float":        "float 4s ease-in-out infinite",
+        "glow-pulse":   "glow-pulse 2s ease-in-out infinite",
+        "spin-slow":    "spin-slow 8s linear infinite",
+        "shimmer":      "shimmer 1.4s ease infinite",
+        "waveBar":      "waveBar 1s ease-in-out infinite",
       },
+
       keyframes: {
         waveform: {
           "0%, 100%": { transform: "scaleY(0.4)" },
-          "50%": { transform: "scaleY(1)" },
+          "50%":      { transform: "scaleY(1)" },
+        },
+        waveBar: {
+          "0%, 100%": { transform: "scaleY(0.4)" },
+          "50%":      { transform: "scaleY(1)" },
         },
         blob: {
-          "0%": { transform: "translate(0px, 0px) scale(1)" },
-          "33%": { transform: "translate(30px, -50px) scale(1.1)" },
-          "66%": { transform: "translate(-20px, 20px) scale(0.9)" },
+          "0%":   { transform: "translate(0px, 0px) scale(1)" },
+          "33%":  { transform: "translate(30px, -50px) scale(1.1)" },
+          "66%":  { transform: "translate(-20px, 20px) scale(0.9)" },
           "100%": { transform: "translate(0px, 0px) scale(1)" },
         },
         typingDot: {
-          "0%, 80%, 100%": { transform: "scale(0)" },
-          "40%": { transform: "scale(1)" },
+          "0%, 80%, 100%": { transform: "scale(0)", opacity: "0" },
+          "40%":           { transform: "scale(1)", opacity: "1" },
+        },
+        float: {
+          "0%, 100%": { transform: "translateY(0px)" },
+          "50%":      { transform: "translateY(-8px)" },
+        },
+        "glow-pulse": {
+          "0%, 100%": { opacity: "0.5" },
+          "50%":      { opacity: "1" },
+        },
+        "spin-slow": {
+          from: { transform: "rotate(0deg)" },
+          to:   { transform: "rotate(360deg)" },
+        },
+        shimmer: {
+          "0%":   { backgroundPosition: "-200% 0" },
+          "100%": { backgroundPosition: "200% 0" },
         },
       },
+
       backgroundImage: {
-        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'glass-gradient': 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%)',
+        "gradient-radial":  "radial-gradient(var(--tw-gradient-stops))",
+        "gradient-brand":   "linear-gradient(135deg, #22D3EE 0%, #6366F1 100%)",
+        "gradient-accent":  "linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)",
+        "gradient-warm":    "linear-gradient(135deg, #F59E0B 0%, #F87171 100%)",
+        "gradient-surface": "linear-gradient(180deg, #0C1220 0%, #070B14 100%)",
+        "mesh-cyan":        "radial-gradient(at 40% 20%, rgba(34,211,238,0.15) 0, transparent 50%), radial-gradient(at 80% 0%, rgba(167,139,250,0.1) 0, transparent 50%), radial-gradient(at 0% 50%, rgba(6,182,212,0.1) 0, transparent 50%)",
       },
+
       backdropBlur: {
         xs: "2px",
+        sm: "6px",
         md: "12px",
+        xl: "20px",
+        "2xl": "32px",
+      },
+
+      boxShadow: {
+        "card":          "0 4px 24px -8px rgba(0,0,0,0.6), 0 1px 0 rgba(255,255,255,0.04) inset",
+        "glow-cyan":     "0 0 32px rgba(34,211,238,0.25)",
+        "glow-violet":   "0 0 32px rgba(167,139,250,0.25)",
+        "glow-sm-cyan":  "0 0 16px rgba(34,211,238,0.2)",
+        "glow-sm-violet":"0 0 16px rgba(167,139,250,0.2)",
+        "float":         "0 20px 60px -12px rgba(0,0,0,0.8)",
       },
     },
   },
