@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, AlertCircle, CheckCircle2, Info } from "lucide-react";
+import { X, AlertCircle, CheckCircle2, Info, type LucideIcon } from "lucide-react";
 import { clsx } from "clsx";
 
 type ToastType = "info" | "success" | "error" | "warning";
@@ -21,7 +21,7 @@ export function showToast(type: ToastType, message: string) {
   toastListeners.forEach((l) => l({ id, type, message }));
 }
 
-const icons: Record<ToastType, React.ElementType> = {
+const icons: Record<ToastType, LucideIcon> = {
   info: Info,
   success: CheckCircle2,
   error: AlertCircle,
@@ -29,10 +29,14 @@ const icons: Record<ToastType, React.ElementType> = {
 };
 
 const styles: Record<ToastType, string> = {
-  info: "border-blue-500/30 bg-blue-500/10 text-blue-300",
-  success: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
-  error: "border-red-500/30 bg-red-500/10 text-red-300",
-  warning: "border-amber-500/30 bg-amber-500/10 text-amber-300",
+  info:
+    "border-[color-mix(in_srgb,var(--color-brand)_35%,transparent)] bg-[var(--color-brand-muted)] text-[var(--color-brand-dim)]",
+  success:
+    "border-[color-mix(in_srgb,var(--color-success)_40%,transparent)] bg-[var(--color-success-muted)] text-[var(--color-success)]",
+  error:
+    "border-[color-mix(in_srgb,var(--color-error)_40%,transparent)] bg-[var(--color-error-muted)] text-[var(--color-error)]",
+  warning:
+    "border-[color-mix(in_srgb,var(--color-warning)_40%,transparent)] bg-[var(--color-warning-bg)] text-[var(--color-warning)]",
 };
 
 export function ToastContainer() {

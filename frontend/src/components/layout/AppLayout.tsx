@@ -59,8 +59,8 @@ export function AppLayout({ children, userType }: AppLayoutProps) {
       >
         {/* Logo */}
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-600 to-accent flex items-center justify-center flex-shrink-0">
-            <Zap className="w-4 h-4 text-white" />
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[var(--color-brand-600)] to-[var(--color-accent-500)] flex items-center justify-center flex-shrink-0">
+            <Zap className="w-4 h-4 text-[var(--color-text-inverse)]" />
           </div>
           <div className="hidden sm:flex flex-col leading-none">
             <span className="text-sm font-bold text-[var(--color-text-primary)] leading-tight">
@@ -79,14 +79,14 @@ export function AppLayout({ children, userType }: AppLayoutProps) {
             title="Copy room code for demo"
             className={clsx(
               "hidden sm:inline-flex items-center gap-1.5 ml-1 workspace-chip",
-              "hover:border-brand-400/50 hover:bg-brand-500/10 transition-colors cursor-pointer"
+              "hover:border-[color-mix(in_srgb,var(--color-brand)_45%,transparent)] hover:bg-[var(--color-brand-muted)] transition-colors cursor-pointer"
             )}
           >
             <span className="font-mono text-[10px] tracking-wider text-[var(--color-text-muted)]">
               #{sessionId.slice(0, 8).toUpperCase()}
             </span>
             {codeCopied ? (
-              <Check className="w-3 h-3 text-emerald-400" />
+              <Check className="h-3 w-3 text-[var(--color-success)]" />
             ) : (
               <Copy className="w-3 h-3 text-[var(--color-text-muted)]" />
             )}

@@ -13,6 +13,7 @@ from app.crud import chat_session as session_crud
 from app.models.chat_session import ChatSession, SessionParticipant
 from app.models.match_queue import MatchQueueEntry
 from app.models.user import User
+from app.utils.profile_roles import queue_role_for_profile
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -39,14 +40,12 @@ async def _get_redis() -> Redis | None:
 def resolve_queue_role(user: User, role_override: str | None) -> Literal["deaf", "mute"]:
     """
     Pick which queue this user enters. Matchmaking pairs deaf-queue with mute-queue.
-    Prefer explicit `role` from the client so two accounts with the same profile can still pair
-    (one chooses listener, one chooses speaker).
+
+    Uses profile category by default; optional legacy override for API compatibility.
     """
     if role_override in ("deaf", "mute"):
         return role_override  # type: ignore[return-value]
-    if user.user_type == "mute":
-        return "mute"
-    return "deaf"
+    return queue_role_for_profile(user.user_type)
 
 
 async def _remove_db_entry(db: AsyncSession, user_id: uuid.UUID) -> None:

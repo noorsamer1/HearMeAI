@@ -48,7 +48,7 @@ export default function AccessibilitySection() {
     <section
       id="accessibility"
       aria-labelledby="a11y-heading"
-      className="relative py-28 sm:py-32 bg-slate-950"
+      className="relative py-28 sm:py-32 bg-[var(--color-bg-subtle)]"
     >
       <div
         className="absolute inset-0 opacity-50 bg-[radial-gradient(circle_at_85%_15%,rgba(20,184,166,0.08),transparent_55%),radial-gradient(circle_at_15%_85%,rgba(99,102,241,0.06),transparent_55%)]"
@@ -64,9 +64,9 @@ export default function AccessibilitySection() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-80px" }}
               transition={{ duration: 0.5 }}
-              className="inline-flex items-center gap-2 px-3 py-1 rounded-full glass border border-white/10 text-[11px] font-semibold tracking-[0.2em] uppercase text-slate-300"
+              className="inline-flex items-center gap-2 rounded-full surface-glass-light px-3 py-1 text-[11px] font-semibold tracking-[0.2em] uppercase text-[var(--color-text-secondary)]"
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-teal-300" />
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-success)]" />
               Accessibility · Our Foundation
             </motion.span>
 
@@ -76,7 +76,7 @@ export default function AccessibilitySection() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-80px" }}
               transition={{ duration: 0.6, delay: 0.05 }}
-              className="mt-6 text-4xl md:text-5xl font-bold font-heading tracking-tight leading-[1.1]"
+              className="mt-6 text-4xl md:text-5xl font-bold font-heading tracking-tight leading-[1.1] text-[var(--color-text-primary)]"
             >
               Inclusion isn&apos;t a feature.{" "}
               <span className="text-gradient">It&apos;s the foundation.</span>
@@ -87,7 +87,7 @@ export default function AccessibilitySection() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-80px" }}
               transition={{ duration: 0.6, delay: 0.15 }}
-              className="mt-5 text-slate-400 text-base md:text-lg leading-relaxed"
+              className="mt-5 text-[var(--color-text-secondary)] text-base md:text-lg leading-relaxed"
             >
               HearMeAI is built for the people most software forgets. Every
               screen, every interaction, and every fallback in this product is
@@ -105,7 +105,7 @@ export default function AccessibilitySection() {
                 type="button"
                 onClick={toggleContrast}
                 aria-pressed={highContrast}
-                className="group inline-flex items-center gap-2 rounded-full border border-teal-300/40 bg-teal-300/10 px-5 py-3 text-sm font-medium text-teal-100 hover:bg-teal-300/20 transition-colors focus:outline-none focus-visible:ring-4 focus-visible:ring-teal-300/40"
+                className="group inline-flex items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--color-brand-300)_50%,transparent)] bg-[var(--color-brand-muted)] px-5 py-3 text-sm font-medium text-[var(--color-brand-900)] transition-colors hover:bg-[color-mix(in_srgb,var(--color-brand-100)_70%,var(--color-surface))] focus:outline-none focus-visible:ring-4 focus-visible:ring-[color-mix(in_srgb,var(--color-brand)_55%,transparent)]"
               >
                 <Contrast
                   className="w-4 h-4 group-hover:rotate-12 transition-transform"
@@ -113,7 +113,7 @@ export default function AccessibilitySection() {
                 />
                 {highContrast ? "Restore default contrast" : "Try high-contrast mode now"}
               </button>
-              <p className="mt-3 text-xs text-slate-500">
+              <p className="mt-3 text-xs text-[var(--color-text-tertiary)]">
                 Toggles a higher-contrast skin across the entire page in real
                 time. Your choice is remembered locally.
               </p>
@@ -154,13 +154,13 @@ function CommitmentRow({
       whileInView={{ opacity: 1, x: 0 }}
       viewport={{ once: true, margin: "-60px" }}
       transition={{ duration: 0.4, delay }}
-      className="flex items-start gap-3 rounded-2xl glass border border-white/10 p-4 hover:border-teal-300/40 transition-colors focus-within:border-teal-300/60"
+      className="flex items-start gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-sm transition-colors hover:border-[color-mix(in_srgb,var(--color-brand-300)_40%,transparent)] focus-within:border-[color-mix(in_srgb,var(--color-brand)_50%,transparent)]"
       tabIndex={0}
     >
-      <span className="grid place-items-center w-7 h-7 rounded-full bg-teal-300/15 text-teal-200 flex-shrink-0">
+      <span className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-full bg-[color-mix(in_srgb,var(--color-brand-100)_85%,var(--color-surface))] text-[var(--color-brand-dim)]">
         <Check className="w-3.5 h-3.5" aria-hidden />
       </span>
-      <span className="text-sm text-slate-200 leading-relaxed">
+      <span className="text-sm text-[var(--color-text-primary)] leading-relaxed">
         {renderInline(text)}
       </span>
     </motion.li>
@@ -173,7 +173,7 @@ function renderInline(text: string) {
     part.startsWith("`") && part.endsWith("`") ? (
       <code
         key={idx}
-        className="px-1.5 py-0.5 rounded bg-white/10 text-xs text-slate-100 font-mono"
+        className="px-1.5 py-0.5 rounded bg-[var(--color-bg-subtle)] text-xs text-[var(--color-text-primary)] font-mono border border-[var(--color-border)]"
       >
         {part.slice(1, -1)}
       </code>

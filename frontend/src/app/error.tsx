@@ -16,8 +16,8 @@ export default function ErrorPage({ error, reset }: ErrorProps) {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-[var(--color-bg)] p-6">
       <div className="flex flex-col items-center gap-6 text-center max-w-sm">
-        <div className="w-16 h-16 rounded-2xl bg-red-500/15 border border-red-500/25 flex items-center justify-center">
-          <AlertTriangle className="w-8 h-8 text-red-400" />
+        <div className="w-16 h-16 rounded-2xl bg-[var(--color-error-muted)] border border-[color-mix(in_srgb,var(--color-error)_30%,transparent)] flex items-center justify-center">
+          <AlertTriangle className="w-8 h-8 text-[var(--color-error)]" />
         </div>
         <div>
           <h1 className="text-xl font-semibold text-[var(--color-text-primary)] mb-2">
@@ -29,7 +29,7 @@ export default function ErrorPage({ error, reset }: ErrorProps) {
         </div>
         <button
           onClick={reset}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-medium transition-colors"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--color-brand)] hover:opacity-90 text-[var(--color-text-inverse)] text-sm font-medium transition-opacity"
         >
           <RefreshCw className="w-4 h-4" />
           Try again

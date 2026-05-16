@@ -4,12 +4,34 @@ import { useCallback, useEffect, useRef } from "react";
 import { SessionWebSocket, WSStatus } from "@/lib/api/websocket";
 import { base64ToAudioUrl } from "@/lib/api/client";
 import { showToast } from "@/components/common/Toast";
-import type { SignPose } from "@/lib/state/sessionStore";
+import type { UserType } from "@/lib/state/sessionStore";
 import { useSessionStore } from "@/lib/state/sessionStore";
+import { buildSpellPlan } from "@/lib/sign/spellingPlan";
+
+/** Finger-spell plain text in the 2D signer (deaf / both profiles). */
+function applySpellPreviewForDeaf(text: string, extras?: { assetUrl?: string }) {
+  const showSp = useSessionStore.getState().signShowSpacesBetweenLetters;
+  const spellPlan = buildSpellPlan(text, showSp);
+  useSessionStore.getState().setSignPreview({
+    phraseKey: text.slice(0, 140),
+    spellSourceText: text,
+    spellPlan,
+    motionPlan: undefined,
+    ...extras,
+  });
+}
 
 export interface UseSessionOptions {
   /** Short-lived JWT from POST /sessions/{id}/ws-ticket */
   wsToken?: string | null;
+  /**
+   * Communication profile of the current user.
+   * Passed directly so WS event callbacks never read a stale Zustand value
+   * (the store is synced asynchronously via useEffect in ChatWorkspace).
+   */
+  userType?: UserType | null;
+  /** Called when the session is permanently deleted (by you or a peer). */
+  onSessionDeleted?: () => void;
 }
 
 function normalizeSignText(value: string): string {
@@ -45,21 +67,23 @@ function inferSignPhraseKey(value: string): string | null {
   return null;
 }
 
-const ALLOWED_SIGN_POSES: readonly SignPose[] = [
-  "neutral",
-  "wave",
-  "thank-you",
-  "yes",
-  "no",
-  "please",
-  "help",
-  "question",
-];
-
 export function useSession(opts: UseSessionOptions = {}) {
-  const { wsToken = null } = opts;
+  const { wsToken = null, userType: userTypeProp, onSessionDeleted } = opts;
+  const onSessionDeletedRef = useRef(onSessionDeleted);
+  useEffect(() => {
+    onSessionDeletedRef.current = onSessionDeleted;
+  }, [onSessionDeleted]);
   const wsRef = useRef<SessionWebSocket | null>(null);
   const pendingAiMessageId = useRef<Map<string, string>>(new Map());
+  /** Server AI message IDs already finalized via ai_final (skip duplicate ai_response). */
+  const completedAiServerIds = useRef<Set<string>>(new Set());
+
+  // Keep a stable ref so WS closures always read the current userType
+  // without recreating the entire WebSocket when the prop changes.
+  const userTypeRef = useRef<UserType | null>(userTypeProp ?? null);
+  useEffect(() => {
+    userTypeRef.current = userTypeProp ?? null;
+  }, [userTypeProp]);
 
   const {
     sessionId,
@@ -73,6 +97,9 @@ export function useSession(opts: UseSessionOptions = {}) {
     setIsConnected,
     setActiveAudioId,
     setSignPreview,
+    setPeerLeftAlert,
+    setPeerJoinAlert,
+    setReplyEmotionHint,
   } = useSessionStore();
 
   const handleWSStatus = useCallback(
@@ -97,24 +124,101 @@ export function useSession(opts: UseSessionOptions = {}) {
       setSystemStatus(state);
     });
 
-    // ── Live caption (partial transcript) ────────────────────
-    ws.on("transcript_partial", (e) => {
-      setLiveCaption(e.text as string);
+    // ── Session joined (contract: session_joined) ─────────────
+    ws.on("session_joined", () => {
+      setIsConnected(true);
+      setSystemStatus("idle");
     });
 
-    // ── Final transcript ──────────────────────────────────────
+    // ── Interim transcript (contract: transcript_interim) ─────
+    ws.on("transcript_interim", (e) => {
+      setLiveCaption(e.text as string);
+      setSystemStatus("processing");
+    });
+
+    // ── Live caption (legacy alias: transcript_partial) ───────
+    ws.on("transcript_partial", (e) => {
+      setLiveCaption(e.text as string);
+      setSystemStatus("processing");
+    });
+
+    // ── Final transcript (contract: transcript_final) ─────────
+    const applySentimentToMessage = (
+      serverMsgId: string | undefined,
+      label: string,
+      confidence: number,
+      sentimentSource?: string
+    ) => {
+      const patch = {
+        sentimentLabel: label,
+        sentimentScore: confidence,
+        ...(sentimentSource ? { sentimentSource } : {}),
+      };
+      if (serverMsgId) {
+        const mapped = pendingAiMessageId.current.get(serverMsgId);
+        if (mapped) {
+          updateMessage(mapped, patch);
+          return;
+        }
+      }
+      const messages = useSessionStore.getState().messages;
+      for (let i = messages.length - 1; i >= 0; i -= 1) {
+        const m = messages[i];
+        if (
+          !m.fromPeer &&
+          (m.role === "user" || m.role === "transcript") &&
+          !m.sentimentLabel
+        ) {
+          updateMessage(m.id, patch);
+          if (serverMsgId) {
+            pendingAiMessageId.current.set(serverMsgId, m.id);
+          }
+          break;
+        }
+      }
+    };
+
+    ws.on("sentiment", (e) => {
+      const serverMsgId = e.messageId as string | undefined;
+      const label = (e.label as string) || "neutral";
+      const confidence = typeof e.confidence === "number" ? e.confidence : 0;
+      const sentimentSource = e.sentimentSource as string | undefined;
+      applySentimentToMessage(serverMsgId, label, confidence, sentimentSource);
+    });
+
+    ws.on("emotion_tuned", (e) => {
+      const label = (e.label as string) || "";
+      const confidence = typeof e.confidence === "number" ? e.confidence : 0;
+      if (!label || confidence < 0.62) return;
+      setReplyEmotionHint({
+        label,
+        confidence,
+        messageId: (e.messageId as string) || undefined,
+      });
+    });
+
     ws.on("transcript_final", (e) => {
       setLiveCaption("");
+      setSystemStatus("idle");
       const transcriptText = e.text as string;
       const id = addMessage({
         role: "transcript",
         text: transcriptText,
         confidence: e.confidence as number,
         detectedLang: e.lang as string,
+        sentimentLabel: (e.sentimentLabel as string) || undefined,
+        sentimentScore:
+          typeof e.sentimentScore === "number" ? (e.sentimentScore as number) : undefined,
+        sentimentSource: (e.sentimentSource as string) || undefined,
       });
-      const phraseKey = inferSignPhraseKey(transcriptText);
-      if (phraseKey) {
-        setSignPreview({ phraseKey });
+      const ut = userTypeRef.current;
+      if (ut === "deaf" || ut === "both") {
+        applySpellPreviewForDeaf(transcriptText);
+      } else {
+        const phraseKey = inferSignPhraseKey(transcriptText);
+        if (phraseKey) {
+          setSignPreview({ phraseKey });
+        }
       }
       // Map server messageId → local message id for subsequent AI linking
       if (e.messageId) {
@@ -125,14 +229,22 @@ export function useSession(opts: UseSessionOptions = {}) {
     // ── AI partial ────────────────────────────────────────────
     ws.on("ai_partial", (e) => {
       const msgId = e.messageId as string;
-      const action = e.action as string | undefined;
-      setLiveAiResponse(e.text as string);
+      const text = e.text as string;
+      if (!msgId) return;
 
-      // If this messageId already has a local message, update it in place
-      if (pendingAiMessageId.current.has(msgId)) {
-        const localId = pendingAiMessageId.current.get(msgId)!;
-        updateMessage(localId, { text: e.text as string, isPartial: true });
+      if (!pendingAiMessageId.current.has(msgId)) {
+        const localId = addMessage({
+          role: "assistant",
+          text,
+          isPartial: true,
+        });
+        pendingAiMessageId.current.set(msgId, localId);
+        clearLiveResponse();
+        return;
       }
+
+      const localId = pendingAiMessageId.current.get(msgId)!;
+      updateMessage(localId, { text, isPartial: true });
     });
 
     // ── AI final ─────────────────────────────────────────────
@@ -140,10 +252,18 @@ export function useSession(opts: UseSessionOptions = {}) {
       const msgId = e.messageId as string;
       const action = e.action as string | undefined;
       const aiText = e.text as string;
+      if (msgId) {
+        completedAiServerIds.current.add(msgId);
+      }
       clearLiveResponse();
-      const phraseKey = inferSignPhraseKey(aiText);
-      if (phraseKey) {
-        setSignPreview({ phraseKey });
+      const utAi = userTypeRef.current;
+      if (utAi === "deaf" || utAi === "both") {
+        applySpellPreviewForDeaf(aiText);
+      } else {
+        const phraseKey = inferSignPhraseKey(aiText);
+        if (phraseKey) {
+          setSignPreview({ phraseKey });
+        }
       }
 
       if (pendingAiMessageId.current.has(msgId)) {
@@ -170,8 +290,38 @@ export function useSession(opts: UseSessionOptions = {}) {
       }
     });
 
+    // ── AI response (contract: ai_response) ──────────────────
+    // Peers / non-streaming paths only — skip if this client already got ai_final.
+    ws.on("ai_response", (e) => {
+      const msgId = e.messageId as string | undefined;
+      if (msgId && completedAiServerIds.current.has(msgId)) {
+        clearLiveResponse();
+        return;
+      }
+      const aiText = e.text as string;
+      clearLiveResponse();
+      const utResp = userTypeRef.current;
+      if (utResp === "deaf" || utResp === "both") {
+        applySpellPreviewForDeaf(aiText);
+      } else {
+        const phraseKey = inferSignPhraseKey(aiText);
+        if (phraseKey) {
+          setSignPreview({ phraseKey });
+        }
+      }
+      addMessage({
+        role: "assistant",
+        text: aiText,
+        isPartial: false,
+      });
+    });
+
     // ── TTS ready ─────────────────────────────────────────────
     ws.on("tts_ready", (e) => {
+      // Deaf and "both" users cannot hear — skip TTS playback entirely.
+      const ut = userTypeRef.current;
+      if (ut === "deaf" || ut === "both") return;
+
       const audioUrl = base64ToAudioUrl(e.audio as string);
       if (!audioUrl) {
         showToast("error", "Audio playback failed — invalid audio data");
@@ -193,27 +343,48 @@ export function useSession(opts: UseSessionOptions = {}) {
       };
     });
 
-    // ── Error ─────────────────────────────────────────────────
+    // ── Error (contract: error) ────────────────────────────────
     ws.on("error", (e) => {
-      console.error("[WS error]", e.message, e.code);
+      const code = e.code as string | undefined;
+      const msg = (e.message as string) || "An error occurred";
+      console.error("[WS error]", msg, code, e.detail);
       setSystemStatus("idle");
+      if (code === "stt_error") {
+        showToast(
+          "error",
+          "Speech recognition failed. Try speaking again or check your microphone."
+        );
+      } else {
+        showToast("error", `Error: ${msg}`);
+      }
     });
 
     ws.on("message", (e) => {
       const kind = e.kind as string;
       const text = (e.text as string) || "";
       if (!text) return;
-      const phraseKey = inferSignPhraseKey(text);
-      if (phraseKey) {
-        setSignPreview({ phraseKey });
+
+      const ut = userTypeRef.current;
+      if (ut === "deaf" || ut === "both") {
+        applySpellPreviewForDeaf(text);
       }
-      addMessage({
+
+      const localId = addMessage({
         role: kind === "transcript" ? "transcript" : "user",
         text,
         fromPeer: true,
+        senderName: (e.senderName as string) || undefined,
         detectedLang: e.lang as string | undefined,
         confidence: e.confidence as number | undefined,
+        sentimentLabel: (e.sentimentLabel as string) || undefined,
+        sentimentScore:
+          typeof e.sentimentScore === "number" ? (e.sentimentScore as number) : undefined,
+        sentimentSource: (e.sentimentSource as string) || undefined,
       });
+      const serverMsgId = e.messageId as string | undefined;
+      if (serverMsgId) {
+        pendingAiMessageId.current.set(serverMsgId, localId);
+      }
     });
 
     ws.on("ai_enhancement", (e) => {
@@ -226,37 +397,96 @@ export function useSession(opts: UseSessionOptions = {}) {
     ws.on("sign_suggestion", (e) => {
       const phraseKey = e.phraseKey as string;
       const assetUrl = e.assetUrl as string | undefined;
-      if (phraseKey) {
-        setSignPreview({ phraseKey, assetUrl });
+      if (!phraseKey) return;
+      const ut = userTypeRef.current;
+      if (ut === "deaf" || ut === "both") {
+        applySpellPreviewForDeaf(phraseKey, assetUrl ? { assetUrl } : undefined);
+        return;
       }
+      setSignPreview({ phraseKey, assetUrl });
     });
 
-    ws.on("sign_motion_plan", (e) => {
-      const phraseKey = (e.phraseKey as string) || "llm-plan";
-      const rawSteps = Array.isArray(e.sequence) ? e.sequence : [];
-      const motionPlan = rawSteps
-        .map((step) => {
-          if (!step || typeof step !== "object") return null;
-          const pose = (step as { pose?: string }).pose;
-          const durationMs = Number((step as { durationMs?: number }).durationMs);
-          if (!pose || Number.isNaN(durationMs)) return null;
-          if (!ALLOWED_SIGN_POSES.includes(pose as SignPose)) return null;
-          return {
-            pose: pose as SignPose,
-            durationMs: Math.max(350, Math.min(durationMs, 2200)),
-          };
-        })
-        .filter((step): step is { pose: SignPose; durationMs: number } => step !== null);
+    ws.on("session_deleted", () => {
+      showToast("info", "This session was deleted.");
+      setIsConnected(false);
+      setSystemStatus("idle");
+      onSessionDeletedRef.current?.();
+    });
 
-      if (motionPlan.length > 0) {
-        setSignPreview({ phraseKey, motionPlan });
+    // ── Peer disconnected ────────────────────────────────────
+    ws.on("peer_left", (e) => {
+      const name = (e.senderName as string) || "Your partner";
+      const msg = (e.message as string) || `${name} has left the conversation.`;
+
+      // Add a visible system message in the chat timeline
+      addMessage({ role: "assistant", text: `👋 ${msg}` });
+
+      const ut = userTypeRef.current;
+
+      // Mute / normal users can hear → play TTS farewell
+      if (ut === "mute" || ut === "normal") {
+        const utter = new SpeechSynthesisUtterance(msg);
+        utter.rate = 0.95;
+        window.speechSynthesis?.speak(utter);
       }
+
+      // Deaf / both users need a prominent visual overlay (they cannot hear TTS)
+      setPeerLeftAlert(name);
+
+      // Small toast as secondary confirmation for all users
+      showToast("info", `${name} has left the chat`);
+    });
+
+    // ── Peer joined (re-joined) notification ─────────────────
+    ws.on("peer_joined", (e) => {
+      const name = (e.senderName as string) || "Your partner";
+      const sid = (e.sessionId as string) || "";
+      const ut = userTypeRef.current;
+      const status = useSessionStore.getState().systemStatus;
+
+      // Do not interrupt an active mic/STT pipeline with join TTS.
+      if (
+        (ut === "mute" || ut === "normal") &&
+        status !== "listening" &&
+        status !== "processing"
+      ) {
+        const ttsMsg = `${name} is online and wants to join the room.`;
+        const utter = new SpeechSynthesisUtterance(ttsMsg);
+        utter.rate = 0.95;
+        window.speechSynthesis?.cancel();
+        window.speechSynthesis?.speak(utter);
+      }
+
+      setPeerJoinAlert({ name, sessionId: sid });
+      showToast("info", `${name} is online and wants to chat`);
+    });
+
+    // ── AI interpretation sent to deaf/both peers ─────────────
+    ws.on("peer_ai_assist", (e) => {
+      const ut = userTypeRef.current;
+      // Only deaf / both users need this textual interpretation
+      if (ut !== "deaf" && ut !== "both") return;
+
+      const text = (e.text as string) || "";
+      if (!text) return;
+
+      addMessage({ role: "assistant", text });
+
+      applySpellPreviewForDeaf(text);
+    });
+
+    ws.on("sign_motion_plan", () => {
+      const ut = userTypeRef.current;
+      if (ut !== "deaf" && ut !== "both") return;
+      // Finger-spelling from chat text is authoritative; ignore semantic pose plans.
     });
 
     ws.connect(handleWSStatus);
 
     return () => {
       ws.close();
+      pendingAiMessageId.current.clear();
+      completedAiServerIds.current.clear();
     };
   }, [
     sessionId,
@@ -270,18 +500,42 @@ export function useSession(opts: UseSessionOptions = {}) {
     setIsConnected,
     setActiveAudioId,
     setSignPreview,
+    setPeerLeftAlert,
+    setPeerJoinAlert,
+    setReplyEmotionHint,
     handleWSStatus,
   ]);
 
+  const getLiveCameraSentiment = useCallback(() => {
+    const cam = useSessionStore.getState().cameraSentiment;
+    if (!cam?.label || (cam.confidence ?? 0) < 0.62) {
+      return null;
+    }
+    return { label: cam.label, confidence: cam.confidence };
+  }, []);
+
   const sendText = useCallback(
     (text: string, requestTTS = false) => {
-      const phraseKey = inferSignPhraseKey(text);
-      if (phraseKey) {
-        setSignPreview({ phraseKey });
+      setReplyEmotionHint(null);
+      const ut = userTypeRef.current;
+      if (ut === "deaf" || ut === "both") {
+        applySpellPreviewForDeaf(text);
+      } else {
+        const phraseKey = inferSignPhraseKey(text);
+        if (phraseKey) {
+          setSignPreview({ phraseKey });
+        }
       }
-      wsRef.current?.sendText(text, requestTTS, language);
+      const { manualMood } = useSessionStore.getState();
+      wsRef.current?.sendText(
+        text,
+        requestTTS,
+        language,
+        getLiveCameraSentiment(),
+        manualMood
+      );
     },
-    [language, setSignPreview]
+    [language, setSignPreview, getLiveCameraSentiment, setReplyEmotionHint]
   );
 
   const sendAudioChunk = useCallback((base64: string, mimeType: string) => {
@@ -289,8 +543,12 @@ export function useSession(opts: UseSessionOptions = {}) {
   }, []);
 
   const sendAudioEnd = useCallback(() => {
-    wsRef.current?.sendAudioEnd(useSessionStore.getState().language);
-  }, []);
+    setReplyEmotionHint(null);
+    setSystemStatus("processing");
+    const { language: lang, manualMood, setManualMood } = useSessionStore.getState();
+    wsRef.current?.sendAudioEnd(lang, getLiveCameraSentiment(), manualMood);
+    setManualMood(null);
+  }, [getLiveCameraSentiment, setReplyEmotionHint, setSystemStatus]);
 
   const sendAction = useCallback(
     (action: "simplify" | "clarify" | "translate", text: string, messageId: string) => {

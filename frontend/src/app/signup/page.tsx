@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Lock, Mail, User } from "lucide-react";
 import { registerAccount } from "@/lib/api/authApi";
+import { getPostAuthRedirectPath } from "@/lib/session/recentSessions";
 import { Button } from "@/components/common/Button";
 import AuthScaffold from "@/components/auth/AuthScaffold";
 
@@ -14,7 +15,7 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [displayName, setDisplayName] = useState("");
-  const [userType, setUserType] = useState<"deaf" | "mute" | "both">("deaf");
+  const [userType, setUserType] = useState<"deaf" | "mute" | "both" | "normal">("deaf");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [touched, setTouched] = useState<{
@@ -61,7 +62,7 @@ export default function SignupPage() {
         user_type: userType,
         locale: "en",
       });
-      router.replace("/lobby");
+      router.replace(getPostAuthRedirectPath());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");
     } finally {
@@ -79,11 +80,17 @@ export default function SignupPage() {
     >
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
         <div>
-          <label htmlFor="name" className="mb-1.5 block text-sm font-medium text-slate-200">
+          <label
+            htmlFor="name"
+            className="mb-1.5 block text-sm font-medium text-[var(--color-text-primary)]"
+          >
             Display name
           </label>
           <div className="relative">
-            <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
+            <User
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text-muted)]"
+              aria-hidden
+            />
             <input
               id="name"
               required
@@ -93,20 +100,25 @@ export default function SignupPage() {
               onBlur={() => setTouched((s) => ({ ...s, displayName: true }))}
               onChange={(e) => setDisplayName(e.target.value)}
               aria-invalid={!!displayNameError}
-              className="w-full rounded-xl border border-white/15 bg-black/25 py-3 pl-10 pr-4 text-slate-100 outline-none transition focus:border-brand-400"
+              className="input-field rounded-xl py-3 pl-10 pr-4"
               placeholder="Your name"
             />
           </div>
-          {displayNameError && <p className="mt-1 text-xs text-rose-300">{displayNameError}</p>}
+          {displayNameError && (
+            <p className="mt-1 text-xs text-[var(--color-error)]">{displayNameError}</p>
+          )}
         </div>
 
         <div>
-          <span className="mb-1.5 block text-sm font-medium text-slate-200">I am joining as</span>
-          <div className="grid gap-2 sm:grid-cols-3">
+          <span className="mb-1.5 block text-sm font-medium text-[var(--color-text-primary)]">
+            I am joining as
+          </span>
+          <div className="grid gap-2 grid-cols-2 sm:grid-cols-4">
             {[
-              { value: "deaf", label: "Deaf / HOH" },
-              { value: "mute", label: "Non-speaking" },
-              { value: "both", label: "Both" },
+              { value: "deaf",   label: "Deaf / HOH",      desc: "Reads captions & signs" },
+              { value: "mute",   label: "Non-speaking",    desc: "Types & hears via TTS" },
+              { value: "both",   label: "Deaf & Mute",     desc: "Sign keyboard only" },
+              { value: "normal", label: "Normal",           desc: "Mic, TTS & all features" },
             ].map((option) => {
               const active = userType === option.value;
               return (
@@ -114,13 +126,14 @@ export default function SignupPage() {
                   key={option.value}
                   type="button"
                   onClick={() => setUserType(option.value as typeof userType)}
-                  className={`rounded-xl border px-3 py-2 text-sm transition ${
+                  className={`rounded-xl border px-3 py-2.5 text-sm text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--color-brand)_55%,transparent)] ${
                     active
-                      ? "border-brand-400 bg-brand-500/20 text-brand-100"
-                      : "border-white/15 bg-black/20 text-slate-300 hover:border-white/30"
+                      ? "border-[var(--color-brand)] bg-[var(--color-brand-muted)] text-[var(--color-brand-900)] shadow-sm"
+                      : "border-[var(--color-border)] bg-[var(--color-surface-sunken)] text-[var(--color-text-secondary)] hover:border-[var(--color-brand-300)]"
                   }`}
                 >
-                  {option.label}
+                  <span className="block font-medium leading-tight">{option.label}</span>
+                  <span className="block text-xs mt-0.5 opacity-70 leading-snug">{option.desc}</span>
                 </button>
               );
             })}
@@ -128,11 +141,17 @@ export default function SignupPage() {
         </div>
 
         <div>
-          <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-slate-200">
+          <label
+            htmlFor="email"
+            className="mb-1.5 block text-sm font-medium text-[var(--color-text-primary)]"
+          >
             Email
           </label>
           <div className="relative">
-            <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
+            <Mail
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text-muted)]"
+              aria-hidden
+            />
             <input
               id="email"
               type="email"
@@ -141,19 +160,27 @@ export default function SignupPage() {
               onBlur={() => setTouched((s) => ({ ...s, email: true }))}
               onChange={(e) => setEmail(e.target.value)}
               aria-invalid={!!emailError}
-              className="w-full rounded-xl border border-white/15 bg-black/25 py-3 pl-10 pr-4 text-slate-100 outline-none transition focus:border-brand-400"
+              className="input-field rounded-xl py-3 pl-10 pr-4"
               placeholder="you@example.com"
             />
           </div>
-          {emailError && <p className="mt-1 text-xs text-rose-300">{emailError}</p>}
+          {emailError && (
+            <p className="mt-1 text-xs text-[var(--color-error)]">{emailError}</p>
+          )}
         </div>
 
         <div>
-          <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-slate-200">
+          <label
+            htmlFor="password"
+            className="mb-1.5 block text-sm font-medium text-[var(--color-text-primary)]"
+          >
             Password
           </label>
           <div className="relative">
-            <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
+            <Lock
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text-muted)]"
+              aria-hidden
+            />
             <input
               id="password"
               type={showPassword ? "text" : "password"}
@@ -163,23 +190,28 @@ export default function SignupPage() {
               onBlur={() => setTouched((s) => ({ ...s, password: true }))}
               onChange={(e) => setPassword(e.target.value)}
               aria-invalid={!!passwordError}
-              className="w-full rounded-xl border border-white/15 bg-black/25 py-3 pl-10 pr-12 text-slate-100 outline-none transition focus:border-brand-400"
+              className="input-field rounded-xl py-3 pl-10 pr-12"
               placeholder="Minimum 8 characters"
             />
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--color-brand)_55%,transparent)]"
               aria-label={showPassword ? "Hide password" : "Show password"}
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
-          {passwordError && <p className="mt-1 text-xs text-rose-300">{passwordError}</p>}
+          {passwordError && (
+            <p className="mt-1 text-xs text-[var(--color-error)]">{passwordError}</p>
+          )}
         </div>
 
         <div>
-          <label htmlFor="confirmPassword" className="mb-1.5 block text-sm font-medium text-slate-200">
+          <label
+            htmlFor="confirmPassword"
+            className="mb-1.5 block text-sm font-medium text-[var(--color-text-primary)]"
+          >
             Confirm password
           </label>
           <input
@@ -190,14 +222,19 @@ export default function SignupPage() {
             onBlur={() => setTouched((s) => ({ ...s, confirmPassword: true }))}
             onChange={(e) => setConfirmPassword(e.target.value)}
             aria-invalid={!!confirmPasswordError}
-            className="w-full rounded-xl border border-white/15 bg-black/25 px-4 py-3 text-slate-100 outline-none transition focus:border-brand-400"
+            className="input-field rounded-xl px-4 py-3"
             placeholder="Re-enter password"
           />
-          {confirmPasswordError && <p className="mt-1 text-xs text-rose-300">{confirmPasswordError}</p>}
+          {confirmPasswordError && (
+            <p className="mt-1 text-xs text-[var(--color-error)]">{confirmPasswordError}</p>
+          )}
         </div>
 
         {error && (
-          <div className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+          <div
+            className="rounded-xl border border-[var(--color-error-muted)] bg-[var(--color-error-bg)] px-3 py-2 text-sm text-[var(--color-error)]"
+            role="alert"
+          >
             {error}
           </div>
         )}

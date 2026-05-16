@@ -70,7 +70,7 @@ export default function AcademicSection() {
     <section
       id="academic"
       aria-labelledby="academic-heading"
-      className="relative py-24 sm:py-28 bg-slate-900/40 border-t border-white/5"
+      className="relative py-24 sm:py-28 bg-[var(--color-surface)] border-t border-[var(--color-border)]"
     >
       <div className="container relative z-10 px-6 max-w-6xl mx-auto">
         <div className="text-center max-w-3xl mx-auto">
@@ -79,9 +79,9 @@ export default function AcademicSection() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-80px" }}
             transition={{ duration: 0.5 }}
-            className="inline-flex items-center gap-2 px-3 py-1 rounded-full glass border border-white/10 text-[11px] font-semibold tracking-[0.2em] uppercase text-slate-300"
+            className="inline-flex items-center gap-2 rounded-full surface-glass-light px-3 py-1 text-[11px] font-semibold tracking-[0.2em] uppercase text-[var(--color-text-secondary)]"
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-border-strong)]" />
             Academic Project
           </motion.span>
 
@@ -91,10 +91,10 @@ export default function AcademicSection() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-80px" }}
             transition={{ duration: 0.6, delay: 0.05 }}
-            className="mt-5 text-3xl md:text-4xl font-semibold font-heading tracking-tight"
+            className="mt-5 text-3xl md:text-4xl font-semibold font-heading tracking-tight text-[var(--color-text-primary)]"
           >
             Built as part of{" "}
-            <span className="text-slate-100">
+            <span className="text-[var(--color-text-primary)]">
               [Program / Course Name]
             </span>{" "}
             at{" "}
@@ -123,7 +123,7 @@ export default function AcademicSection() {
           />
         </div>
 
-        <div className="mt-10 pt-8 border-t border-white/5">
+        <div className="mt-10 pt-8 border-t border-[var(--color-border)]">
           <ul className="flex flex-wrap items-center justify-center gap-3">
             {RESOURCES.map((resource) => (
               <li key={resource.label}>
@@ -132,12 +132,12 @@ export default function AcademicSection() {
             ))}
           </ul>
 
-          <p className="mt-6 text-center text-xs text-slate-500">
+          <p className="mt-6 text-center text-xs text-[var(--color-text-tertiary)]">
             Replace bracketed placeholders before public release.
           </p>
         </div>
 
-        <p className="mt-10 text-center text-[11px] uppercase tracking-[0.2em] text-slate-600">
+        <p className="mt-10 text-center text-[11px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">
           © {new Date().getFullYear()} HearMeAI · Built with care for accessibility
         </p>
       </div>
@@ -162,22 +162,22 @@ function CreditCard({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-60px" }}
       transition={{ duration: 0.5 }}
-      className="rounded-3xl glass border border-white/10 p-7"
+      className="rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface-raised)] p-7 shadow-sm"
     >
       <header className="flex items-center gap-3">
-        <span className="grid place-items-center w-10 h-10 rounded-xl bg-white/5 border border-white/10 text-slate-200">
+        <span className="grid place-items-center w-10 h-10 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)]">
           <Icon className="w-4 h-4" aria-hidden />
         </span>
-        <h3 className="text-base font-semibold text-slate-100">{heading}</h3>
+        <h3 className="text-base font-semibold text-[var(--color-text-primary)]">{heading}</h3>
       </header>
 
       <dl className="mt-5 grid grid-cols-1 sm:grid-cols-[max-content_1fr] gap-x-6 gap-y-3 text-sm">
         {rows.map((row) => (
           <div key={row.label} className="contents">
-            <dt className="text-slate-500 uppercase tracking-[0.18em] text-[11px] sm:pt-0.5">
+            <dt className="text-[var(--color-text-tertiary)] uppercase tracking-[0.18em] text-[11px] sm:pt-0.5">
               {row.label}
             </dt>
-            <dd className="text-slate-200">{row.value}</dd>
+            <dd className="text-[var(--color-text-primary)]">{row.value}</dd>
           </div>
         ))}
       </dl>
@@ -192,7 +192,7 @@ function ResourceLink({ resource }: { resource: Resource }) {
       href={resource.href}
       target={resource.external ? "_blank" : undefined}
       rel={resource.external ? "noopener noreferrer" : undefined}
-      className="inline-flex items-center gap-2 rounded-full glass border border-white/10 px-4 py-2 text-sm text-slate-200 hover:bg-white/10 hover:border-white/30 transition-colors focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-400/60"
+      className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2 text-sm text-[var(--color-text-primary)] transition-colors hover:border-[var(--color-border-strong)] hover:bg-[var(--color-bg-subtle)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[color-mix(in_srgb,var(--color-brand)_55%,transparent)]"
     >
       <Icon className="w-4 h-4" aria-hidden />
       {resource.label}

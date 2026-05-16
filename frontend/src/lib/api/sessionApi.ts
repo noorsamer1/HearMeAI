@@ -50,18 +50,27 @@ export async function createSession(
 
 export async function joinSessionByCode(
   token: string,
-  invite_code: string,
-  role: "deaf" | "mute"
+  invite_code: string
 ): Promise<SessionDetail> {
   return apiFetch("/api/v1/sessions/join", {
     method: "POST",
     token,
-    body: JSON.stringify({ invite_code, role }),
+    body: JSON.stringify({ invite_code }),
   });
 }
 
 export async function getSession(token: string, sessionId: string): Promise<SessionDetail> {
   return apiFetch(`/api/v1/sessions/${sessionId}`, { token });
+}
+
+/** Permanently deletes the session and all messages for every participant. */
+export async function deleteSession(token: string, sessionId: string): Promise<void> {
+  await apiFetch(`/api/v1/sessions/${sessionId}`, { method: "DELETE", token });
+}
+
+/** Deletes every session in the database (requires ALLOW_SESSION_PURGE=true on the server). */
+export async function purgeAllSessions(token: string): Promise<void> {
+  await apiFetch("/api/v1/sessions/purge-all", { method: "DELETE", token });
 }
 
 export async function listSessionMessages(
@@ -100,9 +109,16 @@ export async function getWsTicket(token: string, sessionId: string): Promise<{ t
   });
 }
 
+/** Issue a ticket for the global /ws/notify notification socket (no session required). */
+export async function getNotifyTicket(token: string): Promise<{ token: string; expires_in: number }> {
+  return apiFetch(`/api/v1/sessions/notify-ticket`, {
+    method: "POST",
+    token,
+  });
+}
+
 export async function matchEnqueue(
-  token: string,
-  role: "deaf" | "mute"
+  token: string
 ): Promise<{
   status: string;
   session_id: string | null;
@@ -111,7 +127,7 @@ export async function matchEnqueue(
   return apiFetch("/api/v1/match/enqueue", {
     method: "POST",
     token,
-    body: JSON.stringify({ role }),
+    body: JSON.stringify({}),
   });
 }
 

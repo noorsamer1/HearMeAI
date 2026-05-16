@@ -21,11 +21,15 @@ import {
 import { getStoredToken } from "@/lib/api/client";
 import { fetchMe, logoutAccount } from "@/lib/api/authApi";
 import { createSession, joinSessionByCode, matchEnqueue, matchPoll } from "@/lib/api/sessionApi";
+import {
+  hasRecentSessions,
+  readRecentSessions,
+  RECENT_SESSION_KEY,
+  RECENT_SESSIONS_KEY,
+} from "@/lib/session/recentSessions";
 import { Button } from "@/components/common/Button";
 
 const ONBOARDING_KEY = "hearmeai-lobby-onboarding-complete";
-const RECENT_SESSION_KEY = "hearmeai-recent-session";
-const RECENT_SESSIONS_KEY = "hearmeai-recent-sessions";
 
 type RecentSession = {
   sessionId: string;
@@ -40,9 +44,6 @@ export default function LobbyPage() {
   const [userType, setUserType] = useState<string | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [invite, setInvite] = useState("");
-  const [joinRole, setJoinRole] = useState<"deaf" | "mute">("deaf");
-  /** Which queue to use for Find a partner — must be opposite between two users for a match. */
-  const [queueSide, setQueueSide] = useState<"deaf" | "mute">("deaf");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [statusKind, setStatusKind] = useState<"info" | "success" | "error">("info");
@@ -52,6 +53,7 @@ export default function LobbyPage() {
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [showDemoGuide, setShowDemoGuide] = useState(true);
   const [inviteTouched, setInviteTouched] = useState(false);
+  const [showBackToSessions, setShowBackToSessions] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const createSectionRef = useRef<HTMLElement | null>(null);
   const joinSectionRef = useRef<HTMLElement | null>(null);
@@ -80,15 +82,9 @@ export default function LobbyPage() {
       .then((u) => {
         setDisplayName(u.display_name);
         setUserType(u.user_type);
-        if (u.user_type === "mute") {
-          setQueueSide("mute");
-          setJoinRole("mute");
-        } else {
-          setQueueSide("deaf");
-          setJoinRole("deaf");
-        }
         const completed = window.localStorage.getItem(ONBOARDING_KEY) === "1";
         if (!completed) setShowOnboarding(true);
+        setShowBackToSessions(hasRecentSessions());
         try {
           const raw = window.localStorage.getItem(RECENT_SESSION_KEY);
           if (raw) {
@@ -109,12 +105,22 @@ export default function LobbyPage() {
       ? "Invite code must be 4-32 characters using letters, numbers, or underscore."
       : null;
   const canJoin = normalizedInvite.length > 0 && !inviteError && !busy;
+  const profileLabels: Record<string, string> = {
+    deaf: "Deaf",
+    mute: "Mute",
+    both: "Deaf & Mute",
+    normal: "Normal",
+  };
+  const profileLabel = userType ? profileLabels[userType] ?? userType : "your profile";
+
   const suggestedPath = useMemo(() => {
     if (createdRoom) return "Copy the invite code and open the room when your partner is ready.";
-    if (normalizedInvite) return "You entered an invite code. Choose a role and tap Join session.";
-    if (userType === "mute") return "Suggested: use Speaker side in matchmaking or join as Speaker.";
-    return "Suggested: create a room for demos, or join as Listener for caption-first conversations.";
-  }, [createdRoom, normalizedInvite, userType]);
+    if (normalizedInvite) return `Paste the code and join — your ${profileLabel} profile controls the session UI.`;
+    if (userType === "mute" || userType === "normal") {
+      return "Suggested: matchmaking pairs you with a Deaf or Deaf & Mute partner.";
+    }
+    return "Suggested: create a room for demos, or join with an invite code.";
+  }, [createdRoom, normalizedInvite, userType, profileLabel]);
 
   function persistRecentSession(sessionId: string, source: RecentSession["source"]) {
     const payload: RecentSession = { sessionId, source, at: Date.now() };
@@ -172,7 +178,7 @@ export default function LobbyPage() {
     setStatus(null);
     setStatusKind("info");
     try {
-      const s = await joinSessionByCode(token, normalizedInvite, joinRole);
+      const s = await joinSessionByCode(token, normalizedInvite);
       persistRecentSession(s.id, "join");
       router.push(`/chat/${s.id}`);
     } catch (e) {
@@ -190,14 +196,14 @@ export default function LobbyPage() {
     setStatusKind("info");
     stopPolling();
     try {
-      const r = await matchEnqueue(token, queueSide);
+      const r = await matchEnqueue(token);
       if (r.status === "matched" && r.session_id) {
         persistRecentSession(r.session_id, "match");
         router.push(`/chat/${r.session_id}`);
         return;
       }
       setStatus(
-        "Waiting for a partner on the opposite side (listener ↔ speaker). This page will open the room automatically when they join."
+        "Waiting for a compatible partner (Deaf ↔ Mute/Normal). This page will open the room automatically when matched."
       );
       setStatusKind("info");
       startMatchPolling();
@@ -263,14 +269,19 @@ export default function LobbyPage() {
             ) : (
               <p className="text-sm text-[var(--color-text-muted)]">
                 Signed in as {displayName || "…"}
-                {userType ? ` · Profile: ${userType}` : ""}
+                {userType ? ` · Profile: ${{ deaf: "Deaf", mute: "Mute", both: "Deaf & Mute", normal: "Normal" }[userType] ?? userType}` : ""}
               </p>
             )}
           </div>
-          <div className="flex gap-2">
-            <Link href="/" className="text-sm text-brand-400 hover:underline self-center">
-              Demo chat
-            </Link>
+          <div className="flex items-center gap-2 shrink-0">
+            {showBackToSessions && (
+              <Link
+                href="/app/sessions"
+                className="text-sm text-[var(--color-brand)] hover:text-[var(--color-brand-dim)] hover:underline"
+              >
+                Back to sessions
+              </Link>
+            )}
             <Button type="button" variant="ghost" size="sm" onClick={handleLogout}>
               Log out
             </Button>
@@ -278,10 +289,10 @@ export default function LobbyPage() {
         </div>
 
         {showOnboarding && (
-          <section className="rounded-2xl border border-brand-500/35 bg-brand-600/10 p-5 space-y-4">
+          <section className="rounded-2xl border border-[color-mix(in_srgb,var(--color-brand)_35%,transparent)] bg-[var(--color-brand-muted)] p-5 space-y-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-brand-200">
+                <p className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[var(--color-brand-dim)]">
                   <Sparkles className="w-3.5 h-3.5" />
                   First-time quick start
                 </p>
@@ -314,12 +325,12 @@ export default function LobbyPage() {
                   onClick={() => setOnboardingStep(idx)}
                   className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm transition ${
                     onboardingStep === idx
-                      ? "border-brand-400/60 bg-brand-600/20 text-[var(--color-text-primary)]"
-                      : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:border-brand-400/40"
+                      ? "border-[color-mix(in_srgb,var(--color-brand)_50%,transparent)] bg-[color-mix(in_srgb,var(--color-brand)_14%,transparent)] text-[var(--color-text-primary)]"
+                      : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:border-[color-mix(in_srgb,var(--color-brand)_35%,transparent)]"
                   }`}
                 >
                   {onboardingStep > idx ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                    <CheckCircle2 className="w-4 h-4 text-[var(--color-success)] flex-shrink-0" />
                   ) : (
                     <span className="w-4 h-4 rounded-full border border-current/40 flex-shrink-0" />
                   )}
@@ -336,18 +347,18 @@ export default function LobbyPage() {
               )}
               {onboardingStep === 1 && (
                 <p>
-                  Best when someone already created a room. Paste their invite code, choose your role, and join.
+                  Best when someone already created a room. Paste their invite code and join — your profile sets the UI automatically.
                 </p>
               )}
               {onboardingStep === 2 && (
                 <p>
-                  Best for finding a random partner. Select opposite sides (listener vs speaker) to get matched.
+                  Best for finding a random partner. Matchmaking uses your profile (Deaf pairs with Mute/Normal).
                 </p>
               )}
               <button
                 type="button"
                 onClick={finishOnboarding}
-                className="mt-2 inline-flex items-center gap-1 text-brand-300 hover:text-brand-200"
+                className="mt-2 inline-flex items-center gap-1 text-[var(--color-brand)] hover:text-[var(--color-brand-dim)]"
               >
                 Got it
                 <ArrowRightCircle className="w-4 h-4" />
@@ -358,10 +369,10 @@ export default function LobbyPage() {
 
         {/* ── Live Demo Guide ──────────────────────────────────── */}
         {showDemoGuide && (
-          <section className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 sm:p-5 space-y-3">
+          <section className="rounded-2xl border border-[color-mix(in_srgb,var(--color-success)_35%,transparent)] bg-[var(--color-success-muted)] p-4 sm:p-5 space-y-3">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-emerald-300">
+                <p className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[var(--color-success)]">
                   <Zap className="w-3.5 h-3.5" />
                   Live demo — same WiFi setup
                 </p>
@@ -382,15 +393,15 @@ export default function LobbyPage() {
             {/* Steps */}
             <ol className="space-y-1.5 text-sm text-[var(--color-text-secondary)]">
               <li className="flex items-start gap-2">
-                <span className="mt-0.5 w-5 h-5 rounded-full bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-[10px] font-bold text-emerald-300 flex-shrink-0">1</span>
+                <span className="mt-0.5 w-5 h-5 rounded-full bg-[var(--color-success-muted)] border border-[color-mix(in_srgb,var(--color-success)_35%,transparent)] flex items-center justify-center text-[10px] font-bold text-[var(--color-success)] flex-shrink-0">1</span>
                 <span><strong className="text-[var(--color-text-primary)]">Person A</strong> clicks <em>Create session</em> → copies the invite code.</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="mt-0.5 w-5 h-5 rounded-full bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-[10px] font-bold text-emerald-300 flex-shrink-0">2</span>
-                <span><strong className="text-[var(--color-text-primary)]">Persons B, C, D</strong> enter the code in <em>Join with code</em> → each picks their role below.</span>
+                <span className="mt-0.5 w-5 h-5 rounded-full bg-[var(--color-success-muted)] border border-[color-mix(in_srgb,var(--color-success)_35%,transparent)] flex items-center justify-center text-[10px] font-bold text-[var(--color-success)] flex-shrink-0">2</span>
+                <span><strong className="text-[var(--color-text-primary)]">Persons B, C, D</strong> enter the code in <em>Join with code</em> — each joins with their own profile.</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="mt-0.5 w-5 h-5 rounded-full bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-[10px] font-bold text-emerald-300 flex-shrink-0">3</span>
+                <span className="mt-0.5 w-5 h-5 rounded-full bg-[var(--color-success-muted)] border border-[color-mix(in_srgb,var(--color-success)_35%,transparent)] flex items-center justify-center text-[10px] font-bold text-[var(--color-success)] flex-shrink-0">3</span>
                 <span>Everyone clicks <em>Open chat room</em> — the room is now live. All messages appear on all screens.</span>
               </li>
             </ol>
@@ -398,10 +409,34 @@ export default function LobbyPage() {
             {/* Role cards */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
               {[
-                { icon: Ear, label: "Deaf", desc: "Sees live captions & sign avatar", color: "text-blue-400", bg: "bg-blue-500/10 border-blue-400/25" },
-                { icon: MessageSquare, label: "Mute", desc: "Types text, hears AI voice", color: "text-violet-400", bg: "bg-violet-500/10 border-violet-400/25" },
-                { icon: Zap, label: "Both", desc: "Captions + text + TTS", color: "text-amber-400", bg: "bg-amber-500/10 border-amber-400/25" },
-                { icon: Mic2, label: "Normal", desc: "Speaks, transcribed live", color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-400/25" },
+                {
+                  icon: Ear,
+                  label: "Deaf",
+                  desc: "Reads captions · uses sign keyboard · sees 2D animations",
+                  color: "text-[var(--color-brand)]",
+                  bg: "bg-[var(--color-brand-muted)] border-[color-mix(in_srgb,var(--color-brand)_28%,transparent)]",
+                },
+                {
+                  icon: MessageSquare,
+                  label: "Mute",
+                  desc: "Types text · hears peer messages via TTS · no sign keyboard",
+                  color: "text-[var(--color-accent)]",
+                  bg: "bg-[var(--color-accent-muted)] border-[color-mix(in_srgb,var(--color-accent)_28%,transparent)]",
+                },
+                {
+                  icon: Zap,
+                  label: "Deaf & Mute",
+                  desc: "Sign keyboard · sees 2D animations · no mic or TTS",
+                  color: "text-[var(--color-warning)]",
+                  bg: "bg-[var(--color-warning-bg)] border-[color-mix(in_srgb,var(--color-warning)_35%,transparent)]",
+                },
+                {
+                  icon: Mic2,
+                  label: "Normal",
+                  desc: "Speaks via mic · transcribed live · full audio/TTS support",
+                  color: "text-[var(--color-success)]",
+                  bg: "bg-[var(--color-success-muted)] border-[color-mix(in_srgb,var(--color-success)_35%,transparent)]",
+                },
               ].map(({ icon: Icon, label, desc, color, bg }) => (
                 <div key={label} className={`rounded-xl border p-3 space-y-1 ${bg}`}>
                   <Icon className={`w-5 h-5 ${color}`} />
@@ -446,7 +481,7 @@ export default function LobbyPage() {
             className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-3 scroll-mt-24"
           >
             <h2 className="font-medium text-[var(--color-text-primary)] inline-flex items-center gap-2">
-              <DoorOpen className="w-4 h-4 text-brand-300" />
+              <DoorOpen className="w-4 h-4 text-[var(--color-brand)]" />
               New room
             </h2>
             <p className="text-sm text-[var(--color-text-muted)]">
@@ -456,7 +491,7 @@ export default function LobbyPage() {
               Create session
             </Button>
             {createdRoom && (
-              <div className="mt-4 rounded-xl border border-brand-500/30 bg-brand-600/10 p-4 space-y-3">
+              <div className="mt-4 rounded-xl border border-[color-mix(in_srgb,var(--color-brand)_30%,transparent)] bg-[var(--color-brand-muted)] p-4 space-y-3">
                 <p className="text-sm text-[var(--color-text-secondary)]">Share this invite code:</p>
                 <p className="text-2xl font-mono font-bold tracking-wider text-[var(--color-text-primary)] break-all">
                   {createdRoom.code}
@@ -486,7 +521,7 @@ export default function LobbyPage() {
             className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-3 scroll-mt-24"
           >
             <h2 className="font-medium text-[var(--color-text-primary)] inline-flex items-center gap-2">
-              <ArrowRightCircle className="w-4 h-4 text-brand-300" />
+              <ArrowRightCircle className="w-4 h-4 text-[var(--color-brand)]" />
               Join with code
             </h2>
             <input
@@ -499,33 +534,9 @@ export default function LobbyPage() {
               placeholder="Invite code"
               className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-[var(--color-text-primary)] uppercase"
             />
-            {inviteError && <p className="text-xs text-rose-300">{inviteError}</p>}
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setJoinRole("deaf")}
-                className={`rounded-lg border px-3 py-2 text-sm transition ${
-                  joinRole === "deaf"
-                    ? "border-brand-400 bg-brand-500/20 text-brand-100"
-                    : "border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text-secondary)]"
-                }`}
-              >
-                Listener
-              </button>
-              <button
-                type="button"
-                onClick={() => setJoinRole("mute")}
-                className={`rounded-lg border px-3 py-2 text-sm transition ${
-                  joinRole === "mute"
-                    ? "border-brand-400 bg-brand-500/20 text-brand-100"
-                    : "border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text-secondary)]"
-                }`}
-              >
-                Speaker
-              </button>
-            </div>
+            {inviteError && <p className="text-xs text-[var(--color-error)]">{inviteError}</p>}
             <p className="text-xs text-[var(--color-text-muted)]">
-              Selected: <strong>{joinRole === "deaf" ? "Listener (captions / STT)" : "Speaker (text / TTS)"}</strong>
+              Joining as <strong>{profileLabel}</strong> — session behavior follows your profile from signup.
             </p>
             <Button type="button" variant="secondary" onClick={handleJoin} isLoading={busy} disabled={!canJoin}>
               Join session
@@ -537,52 +548,23 @@ export default function LobbyPage() {
             className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-3 lg:col-span-2 scroll-mt-24"
           >
             <h2 className="font-medium text-[var(--color-text-primary)] inline-flex items-center gap-2">
-              <Users className="w-4 h-4 text-brand-300" />
+              <Users className="w-4 h-4 text-[var(--color-brand)]" />
               Matchmaking
               <span
-                title="Choose opposite sides to match: one Listener and one Speaker."
+                title="Pairs Deaf/Deaf & Mute with Mute/Normal profiles automatically."
                 className="inline-flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
               >
                 <CircleHelp className="w-4 h-4" />
               </span>
             </h2>
             <p className="text-sm text-[var(--color-text-muted)]">
-              Choose opposite sides to match quickly: one <strong>Listener</strong> and one <strong>Speaker</strong>.
+              Uses your <strong>{profileLabel}</strong> profile — no role selection needed.
             </p>
-            <label className="block text-sm text-[var(--color-text-secondary)]">I am joining as</label>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <div className="grid grid-cols-2 gap-2 w-full">
-                <button
-                  type="button"
-                  onClick={() => setQueueSide("deaf")}
-                  className={`rounded-lg border px-3 py-2 text-sm transition ${
-                    queueSide === "deaf"
-                      ? "border-brand-400 bg-brand-500/20 text-brand-100"
-                      : "border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text-secondary)]"
-                  }`}
-                >
-                  Listener side
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setQueueSide("mute")}
-                  className={`rounded-lg border px-3 py-2 text-sm transition ${
-                    queueSide === "mute"
-                      ? "border-brand-400 bg-brand-500/20 text-brand-100"
-                      : "border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text-secondary)]"
-                  }`}
-                >
-                  Speaker side
-                </button>
-              </div>
-              <Button type="button" variant="secondary" onClick={handleMatch} isLoading={busy} className="sm:w-auto w-full">
-                <Compass className="w-4 h-4 mr-1" />
-                Find a partner
-              </Button>
-            </div>
-            <p className="text-xs text-[var(--color-text-muted)]">
-              Selected: <strong>{queueSide === "deaf" ? "Listener side (captions / STT)" : "Speaker side (text / TTS)"}</strong>
-            </p>
+            <Button type="button" variant="secondary" onClick={handleMatch} isLoading={busy} className="w-full sm:w-auto">
+              <Compass className="w-4 h-4 mr-1" />
+              Find a partner
+            </Button>
+            
           </section>
         </div>
 
@@ -590,10 +572,10 @@ export default function LobbyPage() {
           <div
             className={`rounded-xl border px-4 py-3 text-sm flex items-start gap-2 ${
               statusKind === "error"
-                ? "border-rose-400/40 bg-rose-500/10 text-rose-200"
+                ? "border-[color-mix(in_srgb,var(--color-error)_40%,transparent)] bg-[var(--color-error-bg)] text-[var(--color-error)]"
                 : statusKind === "success"
-                ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-200"
-                : "border-cyan-400/30 bg-cyan-500/10 text-cyan-200"
+                ? "border-[color-mix(in_srgb,var(--color-success)_40%,transparent)] bg-[var(--color-success-muted)] text-[var(--color-success)]"
+                : "border-[color-mix(in_srgb,var(--color-brand)_35%,transparent)] bg-[var(--color-brand-muted)] text-[var(--color-brand-dim)]"
             }`}
           >
             {statusKind === "error" ? (
@@ -623,15 +605,3 @@ export default function LobbyPage() {
   );
 }
 
-function readRecentSessions(): RecentSession[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(RECENT_SESSIONS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as RecentSession[];
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((item) => !!item?.sessionId);
-  } catch {
-    return [];
-  }
-}

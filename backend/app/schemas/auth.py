@@ -5,7 +5,7 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     display_name: str = Field(min_length=1, max_length=120)
-    user_type: str = Field(pattern="^(deaf|mute|both)$")
+    user_type: str = Field(pattern="^(deaf|mute|both|normal)$")
     locale: str = Field(default="en", max_length=32)
 
 

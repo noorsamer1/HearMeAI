@@ -12,40 +12,46 @@ export default function AuthForm() {
     <motion.div
       initial={{ opacity: 0, y: 30 }}
       animate={{ opacity: 1, y: 0 }}
-      className="glass-card rounded-[2rem] p-8 md:p-10 w-full relative overflow-hidden"
+      className="relative w-full overflow-hidden rounded-[2rem] border border-[var(--color-border)] bg-[var(--color-surface)] p-8 shadow-[var(--shadow-lg)] md:p-10"
     >
       {/* Decorative Blur Background inside card */}
-      <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-brand-600/10 to-transparent pointer-events-none" />
+      <div className="pointer-events-none absolute left-0 top-0 h-1/2 w-full bg-gradient-to-b from-[var(--color-brand-muted)] to-transparent" />
 
       <div className="relative z-10">
-        <h2 className="text-3xl font-heading font-bold mb-2">
+        <h2 className="mb-2 text-3xl font-heading font-bold text-[var(--color-text-primary)]">
           {isLogin ? "Welcome back" : "Create account"}
         </h2>
-        <p className="text-slate-400 font-sans mb-8">
+        <p className="mb-8 font-sans text-[var(--color-text-secondary)]">
           {isLogin ? "Enter your details to access your dashboard." : "Sign up to start communicating freely."}
         </p>
 
         {/* User Mode Toggle */}
-        <div className="bg-slate-900/50 p-1.5 rounded-2xl flex relative mb-8 border border-white/5">
+        <div className="relative mb-8 flex rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-sunken)] p-1.5">
           <motion.div
-            className="absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-brand-600 rounded-xl shadow-lg border border-white/10"
+            className="absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-surface)] shadow-sm"
             animate={{ left: userMode === "deaf" ? "6px" : "calc(50%)" }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
           />
 
           <button
+            type="button"
             onClick={() => setUserMode("deaf")}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-medium text-sm relative z-10 transition-colors ${
-              userMode === "deaf" ? "text-white" : "text-slate-400 hover:text-slate-300"
+            className={`relative z-10 flex flex-1 items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium transition-colors ${
+              userMode === "deaf"
+                ? "text-[var(--color-text-primary)]"
+                : "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
             }`}
           >
             <EarOff className="w-4 h-4" /> Deaf User
           </button>
           
           <button
+            type="button"
             onClick={() => setUserMode("mute")}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-medium text-sm relative z-10 transition-colors ${
-              userMode === "mute" ? "text-white" : "text-slate-400 hover:text-slate-300"
+            className={`relative z-10 flex flex-1 items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium transition-colors ${
+              userMode === "mute"
+                ? "text-[var(--color-text-primary)]"
+                : "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
             }`}
           >
             <VolumeX className="w-4 h-4" /> Mute User
@@ -64,12 +70,12 @@ export default function AuthForm() {
               >
                 <div className="relative">
                   <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-                    <User className="w-5 h-5 text-slate-500" />
+                    <User className="h-5 w-5 text-[var(--color-text-muted)]" />
                   </div>
                   <input
                     type="text"
                     placeholder="Full Name"
-                    className="w-full bg-slate-950/50 border border-white/10 rounded-xl py-3.5 pl-12 pr-4 text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all font-sans"
+                    className="input-field rounded-xl py-3.5 pl-12 pr-4 font-sans"
                   />
                 </div>
               </motion.div>
@@ -80,7 +86,7 @@ export default function AuthForm() {
             <input
               type="email"
               placeholder="Email address"
-              className="w-full bg-slate-950/50 border border-white/10 rounded-xl py-3.5 px-4 text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all font-sans"
+              className="input-field rounded-xl px-4 py-3.5 font-sans"
             />
           </div>
 
@@ -88,22 +94,26 @@ export default function AuthForm() {
             <input
               type="password"
               placeholder="Password"
-              className="w-full bg-slate-950/50 border border-white/10 rounded-xl py-3.5 px-4 text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all font-sans"
+              className="input-field rounded-xl px-4 py-3.5 font-sans"
             />
           </div>
         </div>
 
-        <button className="w-full py-4 rounded-xl bg-gradient-to-r from-brand-600 to-accent text-white font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity active:scale-[0.98]">
+        <button
+          type="button"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--color-brand-600)] to-[var(--color-accent-500)] py-4 font-semibold text-[var(--color-text-inverse)] transition-opacity hover:opacity-95 active:scale-[0.98]"
+        >
           {isLogin ? "Sign In" : "Create Account"}
           <ArrowRight className="w-5 h-5" />
         </button>
 
         <div className="mt-8 text-center">
-          <p className="text-slate-400 text-sm font-sans">
+          <p className="font-sans text-sm text-[var(--color-text-secondary)]">
             {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
             <button
+              type="button"
               onClick={() => setIsLogin(!isLogin)}
-              className="text-brand-400 font-medium hover:text-brand-300 transition-colors"
+              className="font-medium text-[var(--color-brand)] transition-colors hover:text-[var(--color-brand-dim)]"
             >
               {isLogin ? "Sign up" : "Sign in"}
             </button>

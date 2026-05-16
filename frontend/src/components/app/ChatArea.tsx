@@ -44,37 +44,51 @@ export default function ChatArea() {
               className={`flex gap-4 max-w-[85%] ${msg.sender === "user" ? "ml-auto flex-row-reverse" : ""}`}
             >
               {/* Avatar */}
-              <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center -mt-1 shadow-md ${
-                msg.sender === "user" ? "bg-slate-800" : "bg-gradient-to-tr from-brand-600 to-accent"
+              <div className={`mt-1 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full shadow-md ${
+                msg.sender === "user"
+                  ? "bg-[var(--color-surface-muted)]"
+                  : "bg-gradient-to-tr from-[var(--color-brand-600)] to-[var(--color-accent-500)]"
               }`}>
-                {msg.sender === "user" ? <User className="w-5 h-5 text-slate-300" /> : <Mic className="w-5 h-5 text-white" />}
+                {msg.sender === "user" ? (
+                  <User className="h-5 w-5 text-[var(--color-text-secondary)]" />
+                ) : (
+                  <Mic className="h-5 w-5 text-[var(--color-text-inverse)]" />
+                )}
               </div>
 
               {/* Bubble Wrapper */}
               <div className={`group flex flex-col ${msg.sender === "user" ? "items-end" : "items-start"}`}>
-                <div className={`p-4 md:p-5 rounded-3xl font-sans text-[17px] leading-relaxed relative ${
-                  msg.sender === "user" 
-                    ? "bg-slate-800 text-slate-200 border border-slate-700/50 rounded-tr-sm shadow-[0_4px_20px_-10px_rgba(0,0,0,0.5)]" 
-                    : "glass text-slate-100 rounded-tl-sm shadow-[0_4px_20px_-10px_rgba(0,0,0,0.5)] border-white/5"
-                }`}>
+                <div
+                  className={`relative rounded-3xl p-4 font-sans text-[17px] leading-relaxed md:p-5 ${
+                    msg.sender === "user"
+                      ? "rounded-tr-sm border border-[var(--color-border-strong)] bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] shadow-[var(--shadow-sm)]"
+                      : "glass rounded-tl-sm border border-[var(--color-border)] text-[var(--color-text-primary)] shadow-[var(--shadow-sm)]"
+                  }`}
+                >
                   {msg.text}
                   {msg.isStreaming && (
                     <motion.span
                       animate={{ opacity: [0, 1, 0] }}
                       transition={{ duration: 0.8, repeat: Infinity }}
-                      className="inline-block w-2.5 h-4 ml-1.5 bg-brand-400 rounded-[1px] align-middle"
+                      className="ml-1.5 inline-block h-4 w-2.5 rounded-[1px] align-middle bg-[var(--color-brand)]"
                     />
                   )}
                 </div>
 
                 {/* Micro Actions */}
-                <div className="flex items-center gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button className="text-slate-500 hover:text-slate-300 p-1 transition-colors">
-                    <Copy className="w-4 h-4" />
+                <div className="mt-2 flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+                  <button
+                    type="button"
+                    className="p-1 text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text-primary)]"
+                  >
+                    <Copy className="h-4 w-4" />
                   </button>
                   {msg.sender === "ai" && (
-                    <button className="text-slate-500 hover:text-slate-300 p-1 transition-colors">
-                      <Volume2 className="w-4 h-4" />
+                    <button
+                      type="button"
+                      className="p-1 text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text-primary)]"
+                    >
+                      <Volume2 className="h-4 w-4" />
                     </button>
                   )}
                 </div>

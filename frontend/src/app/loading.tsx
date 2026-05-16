@@ -2,9 +2,9 @@ export default function Loading() {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-[var(--color-bg)]">
       <div className="flex flex-col items-center gap-4">
-        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-600 to-accent flex items-center justify-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--color-brand-600)] to-[var(--color-accent-500)]">
           <svg
-            className="w-6 h-6 text-white animate-pulse"
+            className="h-6 w-6 animate-pulse text-[var(--color-text-inverse)]"
             fill="currentColor"
             viewBox="0 0 24 24"
           >
@@ -15,7 +15,7 @@ export default function Loading() {
           {[0, 1, 2].map((i) => (
             <div
               key={i}
-              className="w-2 h-2 rounded-full bg-brand-500 animate-bounce"
+              className="h-2 w-2 animate-bounce rounded-full bg-[var(--color-brand)]"
               style={{ animationDelay: `${i * 0.15}s` }}
             />
           ))}

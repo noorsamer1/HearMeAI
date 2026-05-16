@@ -58,7 +58,7 @@ export function MicButton({ onChunk, onStop, disabled }: MicButtonProps) {
               isActive={isRecording}
               volumeLevel={volumeLevel}
               barCount={11}
-              color="#60a5fa"
+              color="var(--color-brand)"
               className="h-8"
             />
           </motion.div>
@@ -71,12 +71,12 @@ export function MicButton({ onChunk, onStop, disabled }: MicButtonProps) {
         {isRecording && (
           <>
             <motion.div
-              className="absolute inset-0 rounded-full bg-blue-500/20"
+              className="absolute inset-0 rounded-full bg-[color-mix(in_srgb,var(--color-brand)_22%,transparent)]"
               animate={{ scale: [1, 1.6], opacity: [0.5, 0] }}
               transition={{ duration: 1.5, repeat: Infinity, ease: "easeOut" }}
             />
             <motion.div
-              className="absolute inset-0 rounded-full bg-blue-500/15"
+              className="absolute inset-0 rounded-full bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)]"
               animate={{ scale: [1, 1.35], opacity: [0.4, 0] }}
               transition={{ duration: 1.5, repeat: Infinity, ease: "easeOut", delay: 0.3 }}
             />
@@ -92,12 +92,13 @@ export function MicButton({ onChunk, onStop, disabled }: MicButtonProps) {
           className={clsx(
             "relative w-16 h-16 rounded-full transition-all duration-200",
             "flex items-center justify-center",
-            "focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 focus-visible:outline-offset-3",
+            "focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-brand)] focus-visible:outline-offset-3",
             "disabled:opacity-50 disabled:cursor-not-allowed",
             isRecording
-              ? "bg-blue-600 shadow-lg shadow-blue-900/50 hover:bg-blue-500"
-              : "bg-surface-overlay border border-[var(--color-border-strong)] hover:bg-surface-raised hover:border-blue-500/50",
-            state === "error" && "bg-red-600/20 border-red-500/50"
+              ? "bg-[var(--color-brand-600)] shadow-lg shadow-[var(--shadow-brand)] hover:bg-[var(--color-brand-500)]"
+              : "bg-surface-overlay border border-[var(--color-border-strong)] hover:bg-surface-raised hover:border-[color-mix(in_srgb,var(--color-brand)_35%,transparent)]",
+            state === "error" &&
+              "bg-[var(--color-error-muted)] border-[color-mix(in_srgb,var(--color-error)_40%,transparent)]",
           )}
         >
           <AnimatePresence mode="wait">
@@ -108,7 +109,7 @@ export function MicButton({ onChunk, onStop, disabled }: MicButtonProps) {
                 animate={{ scale: 1 }}
                 exit={{ scale: 0 }}
               >
-                <AlertCircle className="w-6 h-6 text-red-400" />
+                <AlertCircle className="w-6 h-6 text-[var(--color-error)]" />
               </motion.span>
             ) : isRecording ? (
               <motion.span
@@ -117,7 +118,7 @@ export function MicButton({ onChunk, onStop, disabled }: MicButtonProps) {
                 animate={{ scale: 1 }}
                 exit={{ scale: 0 }}
               >
-                <MicOff className="w-6 h-6 text-white" />
+                <MicOff className="h-6 w-6 text-[var(--color-text-inverse)]" />
               </motion.span>
             ) : (
               <motion.span

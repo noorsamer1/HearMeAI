@@ -17,27 +17,27 @@ export default function LiveCaption({ text, isStreaming }: LiveCaptionProps) {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95 }}
           transition={{ duration: 0.4, type: "spring", stiffness: 200 }}
-          className="relative group p-6 md:p-8 rounded-3xl glass-card border border-brand-500/20 shadow-[0_10px_40px_-10px_rgba(99,102,241,0.2)]"
+          className="glass-card group relative rounded-3xl border border-[var(--color-border-focus)] p-6 shadow-[var(--shadow-lg)] md:p-8"
         >
           {/* Subtle animated border gradient */}
-          <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-brand-600/20 to-accent/20 opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+          <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-[var(--color-brand-muted)] to-[var(--color-accent-muted)] opacity-0 transition-opacity duration-700 group-hover:opacity-100" />
 
-          <p className="font-heading text-3xl md:text-5xl font-semibold leading-tight tracking-tight text-white relative z-10 transition-all">
+          <p className="relative z-10 font-heading text-3xl font-semibold leading-tight tracking-tight text-[var(--color-text-primary)] transition-all md:text-5xl">
             {text}
             {isStreaming && (
              <motion.span
                 animate={{ opacity: [0, 1, 0] }}
                 transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
-                className="inline-block w-3 md:w-4 h-8 md:h-10 ml-2 bg-brand-400 rounded-sm align-middle"
+                className="ml-2 inline-block h-8 w-3 rounded-sm align-middle bg-[var(--color-brand)] md:h-10 md:w-4"
               />
             )}
           </p>
           
-          <div className="mt-4 flex items-center justify-between text-slate-400 text-sm font-medium z-10 relative">
+          <div className="relative z-10 mt-4 flex items-center justify-between text-sm font-medium text-[var(--color-text-muted)]">
             <span className="flex items-center gap-2">
               <span className="relative flex h-2 w-2">
-                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75"></span>
-                 <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-500"></span>
+                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--color-brand)] opacity-75"></span>
+                 <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--color-brand-500)]"></span>
               </span>
               Live Translation
             </span>

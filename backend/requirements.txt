@@ -18,3 +18,8 @@ slowapi>=0.1.9
 python-jose[cryptography]>=3.3.0
 redis>=5.0.0
 imageio-ffmpeg>=0.6.0
+Pillow>=10.3.0
+# Camera sentiment (ViT FER) — first run downloads ~350MB from Hugging Face
+torch>=2.2.0
+transformers>=4.41.0
+opencv-python-headless>=4.9.0.80

@@ -6,6 +6,7 @@ from app.api.v1.endpoints import (
     health,
     match,
     sessions,
+    sign_translate,
     speech_to_text,
     text_to_speech,
     users,
@@ -22,4 +23,5 @@ api_router.include_router(match.router)
 api_router.include_router(speech_to_text.router, tags=["stt"])
 api_router.include_router(text_to_speech.router, tags=["tts"])
 api_router.include_router(ai_response.router, tags=["ai"])
+api_router.include_router(sign_translate.router, tags=["sign"])
 api_router.include_router(ws_session.router, tags=["realtime"])

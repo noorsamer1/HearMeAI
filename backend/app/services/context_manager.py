@@ -94,6 +94,9 @@ class ContextRegistry:
     def delete(self, session_id: str) -> None:
         self._sessions.pop(session_id, None)
 
+    def clear_all(self) -> None:
+        self._sessions.clear()
+
     def __len__(self) -> int:
         return len(self._sessions)
 

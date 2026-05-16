@@ -1,7 +1,7 @@
 import secrets
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -80,3 +80,38 @@ async def list_participant_user_ids(db: AsyncSession, session_id: uuid.UUID) -> 
         )
     )
     return [r[0] for r in result.all()]
+
+
+async def user_can_delete_session(
+    db: AsyncSession, session_id: uuid.UUID, user_id: uuid.UUID
+) -> bool:
+    """Creator or anyone who ever joined may permanently delete the session."""
+    sess = await get_session(db, session_id)
+    if not sess:
+        return False
+    if sess.created_by == user_id:
+        return True
+    result = await db.execute(
+        select(SessionParticipant.user_id).where(
+            SessionParticipant.session_id == session_id,
+            SessionParticipant.user_id == user_id,
+        )
+    )
+    return result.scalar_one_or_none() is not None
+
+
+async def delete_session(db: AsyncSession, session_id: uuid.UUID) -> bool:
+    """Delete session row; messages, participants, and AI metadata cascade."""
+    sess = await get_session(db, session_id)
+    if not sess:
+        return False
+    await db.delete(sess)
+    await db.flush()
+    return True
+
+
+async def delete_all_sessions(db: AsyncSession) -> int:
+    """Remove every chat session and all related rows (all users)."""
+    result = await db.execute(delete(ChatSession))
+    await db.flush()
+    return result.rowcount or 0

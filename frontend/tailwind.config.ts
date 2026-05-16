@@ -46,11 +46,11 @@ const config: Config = {
           dark:    "#F59E0B",
         },
 
-        /* ── Surfaces ── */
+        /* ── Surfaces (theme tokens; prefers html[data-theme]) ─ */
         surface: {
-          DEFAULT: "#0C1220",
-          raised:  "#111927",
-          overlay: "#172035",
+          DEFAULT: "var(--color-surface)",
+          raised: "var(--color-surface-raised)",
+          overlay: "var(--color-surface-overlay)",
         },
 
         /* ── Status ── */

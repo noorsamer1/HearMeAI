@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Accessibility, Sun, ZoomIn, X } from "lucide-react";
+import { Accessibility, Moon, Sun, ZoomIn, X } from "lucide-react";
 import { clsx } from "clsx";
 import { useSessionStore, FontSize } from "@/lib/state/sessionStore";
 import { Button } from "@/components/common/Button";
@@ -10,7 +10,8 @@ import { useTranslations } from "@/lib/i18n";
 
 export function AccessibilityControls() {
   const [isOpen, setIsOpen] = useState(false);
-  const { isHighContrast, fontSize, language, setIsHighContrast, setFontSize } = useSessionStore();
+  const { isHighContrast, colorMode, fontSize, language, setIsHighContrast, setColorMode, setFontSize } =
+    useSessionStore();
   const t = useTranslations(language);
 
   const fontSizes: Array<{ value: FontSize; label: string }> = [
@@ -52,7 +53,7 @@ export function AccessibilityControls() {
                 "absolute bottom-12 right-0 z-50",
                 "w-64 p-4 rounded-xl",
                 "bg-surface border border-[var(--color-border-strong)]",
-                "shadow-2xl shadow-black/50"
+                "shadow-[var(--shadow-lg)]"
               )}
               role="dialog"
               aria-label={t.accessibility.title}
@@ -64,12 +65,48 @@ export function AccessibilityControls() {
                 </h3>
                 <button
                   onClick={() => setIsOpen(false)}
-                  className="p-1 hover:bg-white/5 rounded-lg transition-colors"
+                  className="p-1 hover:bg-[color-mix(in_srgb,var(--color-text-primary)_6%,transparent)] rounded-lg transition-colors"
                   aria-label="Close"
                 >
                   <X className="w-4 h-4 text-[var(--color-text-muted)]" />
                 </button>
               </div>
+
+              {/* Light / Dark */}
+              <div className="py-2">
+                <p className="text-sm text-[var(--color-text-primary)] mb-2">{t.accessibility.appearance}</p>
+                <div
+                  className="flex rounded-lg border border-[var(--color-border-strong)] p-0.5 bg-[var(--color-surface-raised)]"
+                  role="group"
+                  aria-label={t.accessibility.appearance}
+                >
+                  {(
+                    [
+                      { mode: "light" as const, label: t.accessibility.themeLight, Icon: Sun },
+                      { mode: "dark" as const, label: t.accessibility.themeDark, Icon: Moon },
+                    ] as const
+                  ).map(({ mode, label, Icon }) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setColorMode(mode)}
+                      className={clsx(
+                        "flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-md text-xs font-medium transition-colors",
+                        "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-brand)]",
+                        colorMode === mode
+                          ? "bg-[var(--color-surface)] text-[var(--color-text-primary)] shadow-sm"
+                          : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                      )}
+                      aria-pressed={colorMode === mode}
+                    >
+                      <Icon className="w-3.5 h-3.5 shrink-0" aria-hidden />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="h-px bg-[var(--color-border)] my-2" />
 
               {/* High contrast toggle */}
               <div className="flex items-center justify-between py-2">
@@ -85,13 +122,13 @@ export function AccessibilityControls() {
                   onClick={() => setIsHighContrast(!isHighContrast)}
                   className={clsx(
                     "relative w-10 h-5 rounded-full transition-colors duration-200",
-                    "focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-400 focus-visible:outline-offset-2",
-                    isHighContrast ? "bg-brand-600" : "bg-white/15"
+                    "focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-brand-400)] focus-visible:outline-offset-2",
+                    isHighContrast ? "bg-[var(--color-brand-600)]" : "bg-[var(--color-border-strong)]"
                   )}
                 >
                   <span
                     className={clsx(
-                      "absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200",
+                      "absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-[var(--color-surface)] shadow transition-transform duration-200",
                       isHighContrast && "translate-x-5"
                     )}
                   />
@@ -116,10 +153,10 @@ export function AccessibilityControls() {
                       onClick={() => setFontSize(value)}
                       className={clsx(
                         "flex-1 py-1.5 px-2 rounded-lg text-xs font-medium transition-all",
-                        "focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-400",
+                        "focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-brand-400)]",
                         fontSize === value
-                          ? "bg-brand-600 text-white"
-                          : "bg-white/5 text-[var(--color-text-secondary)] hover:bg-white/10"
+                          ? "bg-[var(--color-brand-600)] text-[var(--color-text-inverse)]"
+                          : "bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-raised)] border border-[var(--color-border)]"
                       )}
                       aria-pressed={fontSize === value}
                     >

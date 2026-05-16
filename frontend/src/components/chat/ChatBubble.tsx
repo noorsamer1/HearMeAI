@@ -7,6 +7,8 @@ import { clsx } from "clsx";
 import { ChatMessage } from "@/lib/state/sessionStore";
 import { useSessionStore } from "@/lib/state/sessionStore";
 import { useTranslations } from "@/lib/i18n";
+import { peerMoodHint, sentimentEmoji } from "@/lib/sentiment/sentimentDisplay";
+import { stripStageDirections } from "@/lib/text/stripStageDirections";
 import { showToast } from "@/components/common/Toast";
 import { base64ToAudioUrl, synthesizeSpeech } from "@/lib/api/client";
 
@@ -65,16 +67,45 @@ export function ChatBubble({ message, onAction }: ChatBubbleProps) {
   const t = useTranslations(language);
   const [copied, setCopied] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const segments = useMemo(() => parseSegments(message.text), [message.text]);
-
-  const isUser       = message.role === "user";
-  const isTranscript = message.role === "transcript";
-  const isAssistant  = message.role === "assistant";
+  const isAssistant = message.role === "assistant";
   const isActionResult = message.role === "action-result";
-  const isAiType     = isAssistant || isActionResult;
+  const isAiType = isAssistant || isActionResult;
+  const displayText = useMemo(
+    () => (isAiType ? stripStageDirections(message.text) : message.text),
+    [message.text, isAiType]
+  );
+  const segments = useMemo(() => parseSegments(displayText), [displayText]);
+  const moodEmoji = useMemo(
+    () => sentimentEmoji(message.sentimentLabel, message.sentimentScore),
+    [message.sentimentLabel, message.sentimentScore]
+  );
+  const peerMoodLine = useMemo(
+    () =>
+      message.fromPeer
+        ? peerMoodHint(
+            message.sentimentLabel,
+            message.sentimentScore,
+            message.sentimentSource,
+            t.chat
+          )
+        : null,
+    [
+      message.fromPeer,
+      message.sentimentLabel,
+      message.sentimentScore,
+      message.sentimentSource,
+      t.chat,
+    ]
+  );
+
+  const isUser = message.role === "user";
+  const isTranscript = message.role === "transcript";
+  // Local user: typed messages and your own mic/STT transcript (not peer relay)
+  const isSelf =
+    !message.fromPeer && (isUser || isTranscript);
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(message.text);
+    await navigator.clipboard.writeText(displayText);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -83,7 +114,7 @@ export function ChatBubble({ message, onAction }: ChatBubbleProps) {
     if (isSpeaking) return;
     setIsSpeaking(true);
     try {
-      const result = await synthesizeSpeech(message.text, language);
+      const result = await synthesizeSpeech(displayText, language);
       const url = base64ToAudioUrl(result.audio_base64);
       if (!url) {
         showToast("error", t.errors.ttsFailed);
@@ -111,38 +142,62 @@ export function ChatBubble({ message, onAction }: ChatBubbleProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
       className={clsx(
-        "group flex gap-2.5 max-w-[85%] sm:max-w-[78%]",
-        isUser ? "self-end flex-row-reverse" : "self-start"
+        "w-full flex",
+        isSelf ? "justify-end" : "justify-start"
       )}
     >
+      <div
+        className={clsx(
+          "group flex gap-2.5 min-w-0 max-w-[min(100%,48rem)] sm:max-w-[min(100%,46rem)]",
+          isSelf ? "flex-row-reverse" : "flex-row"
+        )}
+      >
       {/* ── Avatar ── */}
       <div
         className={clsx(
           "flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center text-[10px] font-bold mt-0.5 shadow-sm",
-          isUser        && "avatar-user shadow-glow-sm-cyan",
-          isTranscript  && "avatar-transcript",
+          isSelf && isUser             && "avatar-user shadow-glow-sm-cyan",
+          isSelf && isTranscript       && "avatar-transcript",
+          isUser && message.fromPeer   && "avatar-transcript",
+          !isSelf && isTranscript      && "avatar-transcript",
           isAiType      && "avatar-ai shadow-glow-sm-violet"
         )}
         aria-hidden
       >
-        {isUser ? "You" : isTranscript ? "STT" : "AI"}
+        {isSelf
+          ? isTranscript
+            ? "STT"
+            : "You"
+          : isUser && message.fromPeer
+            ? (message.senderName?.[0]?.toUpperCase() ?? "P")
+            : isTranscript
+              ? "STT"
+              : "AI"}
       </div>
 
       {/* ── Content column ── */}
-      <div className={clsx("flex flex-col gap-1 min-w-0", isUser && "items-end")}>
+      <div className={clsx("flex flex-col gap-1 min-w-0", isSelf && "items-end")}>
 
         {/* Label row */}
         <div
           className={clsx(
             "flex items-center gap-1.5 flex-wrap",
-            isUser && "flex-row-reverse"
+            isSelf && "flex-row-reverse"
           )}
         >
           <span
             className="text-[11px] font-semibold"
-            style={{ color: isUser ? "var(--color-brand)" : isAiType ? "var(--color-accent)" : "var(--color-text-secondary)" }}
+            style={{ color: isSelf ? "var(--color-brand)" : isAiType ? "var(--color-accent)" : "var(--color-text-secondary)" }}
           >
-            {isUser ? t.chat.you : isTranscript ? t.chat.transcript : t.chat.assistant}
+            {isSelf
+              ? isTranscript
+                ? t.chat.transcript
+                : t.chat.you
+              : isUser && message.fromPeer
+                ? (message.senderName || "Peer")
+                : isTranscript
+                  ? t.chat.transcript
+                  : t.chat.assistant}
           </span>
 
           {isTranscript && message.confidence !== undefined && (
@@ -163,6 +218,16 @@ export function ChatBubble({ message, onAction }: ChatBubbleProps) {
 
           {message.fromPeer && <span className="pill pill-amber text-[10px]">Peer</span>}
 
+          {moodEmoji && (
+            <span
+              className="text-base leading-none"
+              title={message.sentimentLabel ?? "sentiment"}
+              aria-label={`Sentiment: ${message.sentimentLabel}`}
+            >
+              {moodEmoji}
+            </span>
+          )}
+
           <span className="text-[10px]" style={{ color: "var(--color-text-muted)" }}>
             {formatTime(message.timestamp)}
           </span>
@@ -172,10 +237,12 @@ export function ChatBubble({ message, onAction }: ChatBubbleProps) {
         <div
           className={clsx(
             "relative px-4 py-3 text-sm leading-relaxed transition-all duration-150",
-            isUser       && "bubble-user",
-            isTranscript && "bubble-transcript",
-            isAiType     && "bubble-ai",
-            message.isPartial && "opacity-75"
+            isSelf && isUser             && "bubble-user",
+            isSelf && isTranscript       && "bubble-transcript",
+            isUser && message.fromPeer   && "bubble-transcript",
+            !isSelf && isTranscript      && "bubble-transcript",
+            isAiType                     && "bubble-ai",
+            message.isPartial            && "opacity-75"
           )}
         >
           {/* Text content */}
@@ -218,7 +285,9 @@ export function ChatBubble({ message, onAction }: ChatBubbleProps) {
                   key={i}
                   className="w-1 h-1 rounded-full animate-typing-dot"
                   style={{
-                    background: isUser ? "rgba(255,255,255,0.7)" : "var(--color-brand)",
+                    background: isSelf
+                      ? "color-mix(in srgb, var(--color-text-inverse) 78%, transparent)"
+                      : "var(--color-brand)",
                     animationDelay: `${i * 0.2}s`,
                   }}
                 />
@@ -230,70 +299,56 @@ export function ChatBubble({ message, onAction }: ChatBubbleProps) {
           {!message.isPartial && isAiType && (
             <div className="flex flex-wrap gap-1.5 mt-3 pt-3" style={{ borderTop: "1px solid var(--color-border)" }}>
               <button
+                type="button"
                 onClick={() => onAction("simplify", message.text, message.id)}
                 title={t.actions.simplifyHint}
                 aria-label={t.actions.simplify}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all duration-150 cursor-pointer"
-                style={{
-                  background: "rgba(167,139,250,0.1)",
-                  border: "1px solid rgba(167,139,250,0.25)",
-                  color: "#C4B5FD",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(167,139,250,0.2)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(167,139,250,0.1)";
-                }}
+                className="ai-action-chip inline-flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium"
               >
-                <Sparkles className="w-3 h-3" />
+                <Sparkles className="w-3 h-3 shrink-0" />
                 {t.actions.simplify}
               </button>
 
               <button
+                type="button"
                 onClick={() => onAction("clarify", message.text, message.id)}
                 title={t.actions.clarifyHint}
                 aria-label={t.actions.clarify}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all duration-150 cursor-pointer"
-                style={{
-                  background: "rgba(167,139,250,0.1)",
-                  border: "1px solid rgba(167,139,250,0.25)",
-                  color: "#C4B5FD",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(167,139,250,0.2)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(167,139,250,0.1)";
-                }}
+                className="ai-action-chip inline-flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium"
               >
-                <HelpCircle className="w-3 h-3" />
+                <HelpCircle className="w-3 h-3 shrink-0" />
                 {t.actions.clarify}
               </button>
 
               <button
+                type="button"
                 onClick={() => onAction("translate", message.text, message.id)}
                 title={t.actions.translateHint}
                 aria-label={t.actions.translate}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all duration-150 cursor-pointer"
-                style={{
-                  background: "rgba(167,139,250,0.1)",
-                  border: "1px solid rgba(167,139,250,0.25)",
-                  color: "#C4B5FD",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(167,139,250,0.2)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(167,139,250,0.1)";
-                }}
+                className="ai-action-chip inline-flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium"
               >
-                <Languages className="w-3 h-3" />
+                <Languages className="w-3 h-3 shrink-0" />
                 {t.actions.translate}
               </button>
             </div>
           )}
         </div>
+
+        {peerMoodLine && (
+          <p
+            className={clsx(
+              "mt-1.5 max-w-[min(100%,28rem)] text-[11px] leading-snug",
+              isSelf ? "text-end" : "text-start"
+            )}
+            style={{ color: "var(--color-text-muted)" }}
+            role="note"
+          >
+            <span className="me-1" aria-hidden>
+              {moodEmoji}
+            </span>
+            {peerMoodLine}
+          </p>
+        )}
 
         {/* ── Utility toolbar (copy + speak) — fades in on hover ── */}
         {!message.isPartial && (
@@ -302,7 +357,7 @@ export function ChatBubble({ message, onAction }: ChatBubbleProps) {
             animate={{ opacity: 1 }}
             className={clsx(
               "flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150",
-              isUser && "flex-row-reverse"
+              isSelf && "flex-row-reverse"
             )}
           >
             <button
@@ -351,6 +406,7 @@ export function ChatBubble({ message, onAction }: ChatBubbleProps) {
             </button>
           </motion.div>
         )}
+      </div>
       </div>
     </motion.div>
   );

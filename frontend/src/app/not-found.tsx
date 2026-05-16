@@ -16,7 +16,7 @@ export default function NotFound() {
         </div>
         <Link
           href="/"
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-medium transition-colors"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--color-brand)] hover:opacity-90 text-[var(--color-text-inverse)] text-sm font-medium transition-opacity"
         >
           <Home className="w-4 h-4" />
           Go home

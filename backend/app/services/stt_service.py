@@ -19,6 +19,7 @@ Supports three providers (set STT_PROVIDER in .env):
     Uses the /audio/transcriptions Whisper endpoint.
 """
 
+import asyncio
 import base64
 import io
 import subprocess
@@ -83,7 +84,60 @@ class STTService:
             return await self._transcribe_via_chat(audio_data, language_hint, mime_type)
         return await self._transcribe_via_whisper(audio_data, language_hint, mime_type)
 
+    async def transcribe_chunk(
+        self,
+        audio_bytes: bytes,
+        language: str = "auto",
+        mime_type: str = "audio/webm",
+    ) -> "TranscriptResult | None":
+        """Transcribe a partial audio chunk for real-time interim results.
+
+        Skips chunks shorter than 1 000 bytes and applies a 30-second
+        hard timeout so a slow STT provider cannot block the WebSocket.
+
+        Args:
+            audio_bytes: Raw audio data to transcribe.
+            language: ISO language code or `"auto"` for auto-detection.
+            mime_type: MIME type of the audio data.
+
+        Returns:
+            A TranscriptResult on success, or None when the chunk is
+            too short or transcription times out.
+        """
+        if len(audio_bytes) < 1000:
+            return None
+
+        lang_hint: str | None = None if language in (None, "auto") else language
+        try:
+            return await asyncio.wait_for(
+                self.transcribe(
+                    audio_data=audio_bytes,
+                    language_hint=lang_hint,
+                    mime_type=mime_type,
+                ),
+                timeout=30.0,
+            )
+        except asyncio.TimeoutError:
+            logger.warning("STT chunk transcription timed out", mime_type=mime_type)
+            return None
+        except Exception as exc:
+            logger.error("STT chunk transcription failed", error=str(exc))
+            return None
+
     # ── Whisper endpoint (openrouter / openai) ───────────────
+
+    def _prepare_audio_for_whisper(
+        self, audio_data: bytes, mime_type: str
+    ) -> tuple[bytes, str]:
+        """Transcode browser webm/opus to wav when needed — Whisper rejects many webm blobs."""
+        normalized = self._normalize_mime_type(mime_type)
+        if normalized in ("audio/wav", "audio/mpeg", "audio/mp3"):
+            ext = self._mime_to_extension(normalized)
+            return audio_data, ext
+        converted, out_mime = self._convert_audio_for_gpt(audio_data, normalized)
+        if out_mime == "audio/wav":
+            return converted, "wav"
+        return audio_data, self._mime_to_extension(normalized)
 
     async def _transcribe_via_whisper(
         self,
@@ -94,9 +148,7 @@ class STTService:
         start = time.perf_counter()
         client = self._get_client()
 
-        ext = self._mime_to_extension(mime_type)
-        audio_file = io.BytesIO(audio_data)
-        audio_file.name = f"audio.{ext}"
+        audio_data, ext = self._prepare_audio_for_whisper(audio_data, mime_type)
 
         try:
             response = await self._request_whisper_transcription(
@@ -117,8 +169,13 @@ class STTService:
                     provider=settings.stt_provider,
                     status_code=status_code,
                 )
-                fallback_model = "openai/gpt-4o-mini-transcribe"
-                if settings.stt_model_name != fallback_model:
+                whisper_fallbacks = [
+                    "openai/gpt-4o-mini-transcribe",
+                    "openai/whisper-1",
+                ]
+                for fallback_model in whisper_fallbacks:
+                    if settings.stt_model_name == fallback_model:
+                        continue
                     try:
                         fallback_response = await self._request_whisper_transcription(
                             client=client,
@@ -140,17 +197,21 @@ class STTService:
                         return self._build_whisper_result(fallback_response, elapsed_ms)
                     except Exception as fallback_exc:
                         logger.warning(
-                            "Primary STT fallback model failed",
+                            "Whisper fallback model failed",
                             model=fallback_model,
                             error=str(fallback_exc),
                         )
 
-                if self._mime_to_gpt_audio_format(mime_type):
-                    return await self._transcribe_via_chat(audio_data, language_hint, mime_type)
+                chat_result = await self._try_chat_transcription_fallback(
+                    audio_data, language_hint, mime_type, prepared_ext=ext
+                )
+                if chat_result is not None:
+                    return chat_result
 
                 logger.error(
-                    "No compatible STT fallback for current audio format",
+                    "All STT fallbacks exhausted (Whisper upstream + chat audio)",
                     mime_type=mime_type,
+                    prepared_ext=ext,
                 )
 
             elapsed_ms = int((time.perf_counter() - start) * 1000)
@@ -166,6 +227,49 @@ class STTService:
         return self._build_whisper_result(response, elapsed_ms)
 
     # ── gpt-audio-mini chat completions path ─────────────────
+
+    async def _try_chat_transcription_fallback(
+        self,
+        audio_data: bytes,
+        language_hint: str | None,
+        mime_type: str,
+        *,
+        prepared_ext: str,
+    ) -> TranscriptResult | None:
+        """
+        Last-resort STT via gpt-audio-mini when Whisper endpoints return 5xx.
+
+        Uses WAV bytes already prepared for Whisper when available; otherwise
+        transcodes browser webm/opus so we are not blocked by MIME checks on the
+        original Content-Type string (e.g. audio/webm;codecs=opus).
+        """
+        chat_audio = audio_data
+        if prepared_ext == "wav":
+            chat_mime = "audio/wav"
+        else:
+            chat_mime = self._normalize_mime_type(mime_type)
+            if not self._mime_to_gpt_audio_format(chat_mime):
+                chat_audio, chat_mime = self._convert_audio_for_gpt(chat_audio, chat_mime)
+
+        if not self._mime_to_gpt_audio_format(chat_mime):
+            logger.warning(
+                "Chat STT fallback skipped — could not produce wav/mp3",
+                mime_type=mime_type,
+                prepared_ext=prepared_ext,
+            )
+            return None
+
+        try:
+            logger.info(
+                "Trying gpt-audio-mini chat STT after Whisper failure",
+                chat_mime=chat_mime,
+            )
+            return await self._transcribe_via_chat(
+                chat_audio, language_hint, chat_mime
+            )
+        except Exception as chat_exc:
+            logger.warning("Chat STT fallback failed", error=str(chat_exc))
+            return None
 
     async def _transcribe_via_chat(
         self,

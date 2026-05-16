@@ -6,6 +6,7 @@ import re
 from app.core.config import get_settings
 from app.core.logging_config import get_logger
 from app.services.openrouter_client import get_llm_client
+from app.utils.text_cleanup import strip_stage_directions
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -21,7 +22,8 @@ _CLASSIFIER_SYSTEM = (
 _ENHANCER_SYSTEM = (
     "Rewrite the user's message for deaf-friendly clarity: short sentences, plain words, "
     "neutral supportive tone, no sarcasm, no idioms. If meaning is uncertain, prefix with "
-    '"Maybe: ". Output only the rewritten text, no preamble. Match the language of the original.'
+    '"Maybe: ". Output only the rewritten text, no preamble. Match the language of the original. '
+    "Never use asterisk-wrapped stage directions (for example *nods politely*)."
 )
 
 
@@ -85,7 +87,7 @@ async def enhance_text(text: str, classification: dict, *, locale: str = "en") -
             max_tokens=512,
             temperature=0.4,
         )
-        return raw.strip()
+        return strip_stage_directions(raw.strip())
     except Exception as exc:
         logger.warning("enhancer_failed", error=str(exc))
         return ""

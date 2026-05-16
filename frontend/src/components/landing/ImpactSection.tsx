@@ -22,21 +22,24 @@ const PERSONAS: Persona[] = [
     scenario:
       "Joins a lecture remotely. Captions stream the moment the professor speaks.",
     icon: GraduationCap,
-    accent: "from-brand-500/30 via-brand-500/0 to-brand-500/0",
+    accent:
+      "from-[color-mix(in_srgb,var(--color-brand)_30%,transparent)] via-transparent to-transparent",
   },
   {
     title: "Mute professional",
     scenario:
       "Speaks in a meeting through natural TTS — without typing in front of the room.",
     icon: Mic,
-    accent: "from-accent/30 via-accent/0 to-accent/0",
+    accent:
+      "from-[color-mix(in_srgb,var(--color-accent)_30%,transparent)] via-transparent to-transparent",
   },
   {
     title: "Mixed conversation",
     scenario:
       "Two users with different needs join one room; both understand each other in real time.",
     icon: MessagesSquare,
-    accent: "from-teal-400/30 via-teal-400/0 to-teal-400/0",
+    accent:
+      "from-[color-mix(in_srgb,var(--color-success)_30%,transparent)] via-transparent to-transparent",
   },
 ];
 
@@ -47,7 +50,7 @@ export default function ImpactSection() {
     <section
       id="impact"
       aria-labelledby="impact-heading"
-      className="relative py-28 sm:py-32 bg-slate-950"
+      className="relative py-28 sm:py-32 bg-[var(--color-bg)]"
     >
       <div
         className="absolute inset-0 opacity-50 bg-[radial-gradient(circle_at_50%_30%,rgba(168,85,247,0.06),transparent_60%)]"
@@ -61,9 +64,9 @@ export default function ImpactSection() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-80px" }}
             transition={{ duration: 0.5 }}
-            className="inline-flex items-center gap-2 px-3 py-1 rounded-full glass border border-white/10 text-[11px] font-semibold tracking-[0.2em] uppercase text-slate-300"
+            className="inline-flex items-center gap-2 rounded-full surface-glass-light px-3 py-1 text-[11px] font-semibold tracking-[0.2em] uppercase text-[var(--color-text-secondary)]"
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]" />
             Our Mission
           </motion.span>
 
@@ -73,14 +76,14 @@ export default function ImpactSection() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-80px" }}
             transition={{ duration: 0.6, delay: 0.05 }}
-            className="mt-6 text-4xl md:text-5xl lg:text-6xl font-bold font-heading tracking-tight leading-[1.08]"
+            className="mt-6 text-4xl md:text-5xl lg:text-6xl font-bold font-heading tracking-tight leading-[1.08] text-[var(--color-text-primary)]"
           >
             A platform built so no one is{" "}
             <span className="text-gradient">left out of the conversation.</span>
           </motion.h2>
 
           <div
-            className="mt-8 mx-auto h-px w-24 bg-gradient-to-r from-transparent via-accent/60 to-transparent"
+            className="mx-auto mt-8 h-px w-24 bg-gradient-to-r from-transparent via-[color-mix(in_srgb,var(--color-accent)_60%,transparent)] to-transparent"
             aria-hidden
           />
 
@@ -89,7 +92,7 @@ export default function ImpactSection() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-80px" }}
             transition={{ duration: 0.6, delay: 0.15 }}
-            className="mt-8 text-slate-400 text-base md:text-lg leading-relaxed"
+            className="mt-8 text-[var(--color-text-secondary)] text-base md:text-lg leading-relaxed"
           >
             HearMeAI started as a student project but lives in service of a
             larger goal: an internet where deaf and mute users aren&apos;t
@@ -129,7 +132,7 @@ function PersonaCard({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-60px" }}
       transition={{ duration: 0.5, delay }}
-      className="group relative rounded-3xl glass border border-white/10 p-7 hover:border-white/20 transition-colors focus-within:border-white/40"
+      className="group relative rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)] p-7 shadow-sm transition-colors hover:border-[var(--color-border-strong)] hover:shadow-md focus-within:border-[color-mix(in_srgb,var(--color-brand)_40%,transparent)]"
       tabIndex={0}
     >
       <div
@@ -138,14 +141,14 @@ function PersonaCard({
       />
 
       <div className="relative">
-        <div className="grid place-items-center w-12 h-12 rounded-2xl bg-white/5 border border-white/10 text-slate-200">
+        <div className="grid place-items-center w-12 h-12 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-raised)] text-[var(--color-text-primary)]">
           <Icon className="w-5 h-5" aria-hidden />
         </div>
 
-        <h3 className="mt-5 text-lg font-semibold font-heading text-slate-100">
+        <h3 className="mt-5 text-lg font-semibold font-heading text-[var(--color-text-primary)]">
           {persona.title}
         </h3>
-        <p className="mt-2 text-[15px] text-slate-400 leading-relaxed">
+        <p className="mt-2 text-[15px] text-[var(--color-text-secondary)] leading-relaxed">
           {persona.scenario}
         </p>
       </div>

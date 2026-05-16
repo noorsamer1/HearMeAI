@@ -5,15 +5,24 @@ import { motion, AnimatePresence } from "framer-motion";
 import { MessageCircle } from "lucide-react";
 import { useSessionStore } from "@/lib/state/sessionStore";
 import { ChatBubble } from "./ChatBubble";
+import { EmotionTuneHint } from "./EmotionTuneHint";
 import { useTranslations } from "@/lib/i18n";
 
 interface ChatTimelineProps {
   onAction: (action: "simplify" | "clarify" | "translate", text: string, messageId: string) => void;
 }
 
+const EMPTY_SUBTITLES: Record<string, string> = {
+  deaf:   "Use the sign language keyboard or type a message below.",
+  both:   "Use the sign language keyboard to compose a message.",
+  mute:   "Type your message below — your partner will hear it via voice.",
+  normal: "Use the microphone to speak, or type a message below.",
+};
+
 export function ChatTimeline({ onAction }: ChatTimelineProps) {
-  const { messages, liveAiResponse, language } = useSessionStore();
+  const { messages, liveAiResponse, language, userType } = useSessionStore();
   const t = useTranslations(language);
+  const emptySubtitle = EMPTY_SUBTITLES[userType ?? "normal"] ?? t.chat.emptySubtitle;
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -93,7 +102,7 @@ export function ChatTimeline({ onAction }: ChatTimelineProps) {
             className="text-sm max-w-xs leading-relaxed"
             style={{ color: "var(--color-text-muted)" }}
           >
-            {t.chat.emptySubtitle}
+            {emptySubtitle}
           </p>
 
           {/* Decorative dots */}
@@ -111,8 +120,10 @@ export function ChatTimeline({ onAction }: ChatTimelineProps) {
           </div>
         </motion.div>
       ) : (
-        /* ── Message list ── */
-        <div className="flex flex-col gap-1 max-w-3xl mx-auto w-full px-4 pb-6 pt-2">
+        <>
+        <EmotionTuneHint />
+        {/* Message list — max width for readable line length (~65–75ch) */}
+        <div className="flex flex-col gap-1 max-w-[min(100%,72rem)] mx-auto w-full px-4 sm:px-6 lg:px-8 pb-6 pt-2">
           {/* Earlier group */}
           {groupedMessages.earlier.length > 0 && (
             <section aria-label={language === "ar" ? "سابقًا" : "Earlier"} className="flex flex-col gap-1">
@@ -145,11 +156,11 @@ export function ChatTimeline({ onAction }: ChatTimelineProps) {
                 <div className="flex items-center gap-3 py-3" aria-hidden>
                   <div className="flex-1 h-px" style={{ background: "var(--color-border)" }} />
                   <span
-                    className="text-[11px] font-medium tracking-wider uppercase px-3 py-1 rounded-full"
+                    className="rounded-full px-3 py-1 text-[11px] font-medium uppercase tracking-wider"
                     style={{
-                      color: "var(--color-brand)",
-                      border: "1px solid rgba(34,211,238,0.3)",
-                      background: "rgba(34,211,238,0.08)",
+                      color: "var(--color-brand-dim)",
+                      border: "1px solid color-mix(in srgb, var(--color-brand) 38%, transparent)",
+                      background: "var(--color-brand-muted)",
                     }}
                   >
                     {language === "ar" ? "الآن" : "Now"}
@@ -172,19 +183,16 @@ export function ChatTimeline({ onAction }: ChatTimelineProps) {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
-                className="flex gap-3 items-end mt-2"
+                className="w-full flex justify-start mt-2"
               >
+                <div className="flex gap-3 items-end min-w-0 max-w-[min(100%,48rem)] sm:max-w-[min(100%,46rem)]">
                 {/* AI avatar */}
-                <div
-                  className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center text-[10px] font-bold text-white shadow-glow-sm-violet"
-                  style={{ background: "linear-gradient(135deg, #7C3AED, #A78BFA)" }}
-                  aria-hidden
-                >
+                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl avatar-ai shadow-glow-sm-violet" aria-hidden>
                   AI
                 </div>
 
                 <div
-                  className="relative px-4 py-3 rounded-2xl rounded-bl-sm max-w-[75%] text-sm leading-relaxed"
+                  className="relative px-4 py-3 rounded-2xl rounded-bl-sm min-w-0 flex-1 max-w-[calc(100%-2.5rem)] text-sm leading-relaxed"
                   style={{
                     background: "var(--color-surface-raised)",
                     border: "1px solid var(--color-border-strong)",
@@ -207,12 +215,14 @@ export function ChatTimeline({ onAction }: ChatTimelineProps) {
                     ))}
                   </span>
                 </div>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
 
           <div ref={bottomRef} className="h-4" />
         </div>
+        </>
       )}
 
       {/* Bottom fade */}

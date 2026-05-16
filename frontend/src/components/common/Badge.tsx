@@ -10,21 +10,22 @@ interface BadgeProps {
 }
 
 const variantClasses: Record<BadgeVariant, string> = {
-  default: "bg-white/10 text-[var(--color-text-secondary)]",
-  success: "bg-emerald-500/15 text-emerald-400",
-  warning: "bg-amber-500/15 text-amber-400",
-  error: "bg-red-500/15 text-red-400",
-  info: "bg-blue-500/15 text-blue-400",
-  processing: "bg-violet-500/15 text-violet-400",
+  default:
+    "bg-[color-mix(in_srgb,var(--color-text-primary)_8%,transparent)] text-[var(--color-text-secondary)]",
+  success: "bg-[var(--color-success-muted)] text-[var(--color-success)]",
+  warning: "bg-[var(--color-warning-bg)] text-[var(--color-warning)]",
+  error: "bg-[var(--color-error-muted)] text-[var(--color-error)]",
+  info: "bg-[var(--color-brand-muted)] text-[var(--color-brand-dim)]",
+  processing: "bg-[var(--color-accent-muted)] text-[var(--color-accent-dim)]",
 };
 
 const dotColors: Record<BadgeVariant, string> = {
-  default: "bg-gray-400",
-  success: "bg-emerald-400",
-  warning: "bg-amber-400",
-  error: "bg-red-400",
-  info: "bg-blue-400",
-  processing: "bg-violet-400",
+  default: "bg-[var(--color-text-muted)]",
+  success: "bg-[var(--color-success)]",
+  warning: "bg-[var(--color-warning)]",
+  error: "bg-[var(--color-error)]",
+  info: "bg-[var(--color-brand)]",
+  processing: "bg-[var(--color-accent)]",
 };
 
 export function Badge({ children, variant = "default", className, dot }: BadgeProps) {

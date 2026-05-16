@@ -47,6 +47,21 @@ export async function apiFetch<T>(path: string, options: FetchOptions = {}): Pro
     }
 
     return response.json();
+  } catch (err: unknown) {
+    const isAbort =
+      err instanceof DOMException
+        ? err.name === "AbortError"
+        : err instanceof Error && err.name === "AbortError";
+    if (isAbort) {
+      const seconds = Math.round(timeout / 1000);
+      throw new Error(
+        `Request timed out after ${seconds}s (no response from ${API_URL}). ` +
+          "Usually the CORS preflight (OPTIONS) is stuck or the API is unreachable. " +
+          "Confirm the backend is running, the URL matches NEXT_PUBLIC_API_URL, and " +
+          "ALLOWED_ORIGINS includes your app origin (e.g. http://localhost:3000)."
+      );
+    }
+    throw err;
   } finally {
     clearTimeout(id);
   }
@@ -120,6 +135,47 @@ export async function runAction(
 // ── Health check ──────────────────────────────────────────────
 export async function checkHealth(): Promise<{ status: string; version: string }> {
   return apiFetch("/api/v1/health");
+}
+
+// ── Sign Language Translation ─────────────────────────────────
+export async function signTranslate(
+  signs: string[],
+  language: "en" | "ar" = "en",
+  token?: string | null
+): Promise<{ text: string; processing_time_ms: number }> {
+  return apiFetch("/api/v1/sign-translate", {
+    method: "POST",
+    body: JSON.stringify({ signs, language }),
+    token,
+  });
+}
+
+export type CameraSentimentResult = {
+  label: string;
+  confidence: number;
+  method: string;
+  fused_label: string | null;
+  fused_confidence: number | null;
+};
+
+/** Analyze a webcam frame for facial sentiment (optional fusion with text sentiment). */
+export async function postCameraSentiment(
+  sessionId: string,
+  imageBase64: string,
+  token: string | null,
+  options?: { textLabel?: string; textConfidence?: number }
+): Promise<CameraSentimentResult> {
+  return apiFetch(`/api/v1/sessions/${sessionId}/camera-sentiment`, {
+    method: "POST",
+    body: JSON.stringify({
+      image_base64: imageBase64,
+      text_label: options?.textLabel ?? null,
+      text_confidence: options?.textConfidence ?? null,
+    }),
+    token,
+    // First ViT load can take 30–60s on CPU while weights download.
+    timeout: 90_000,
+  });
 }
 
 // ── Base64 audio → Blob ───────────────────────────────────────

@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowRight, Captions, Hand, Mic, LogIn } from "lucide-react";
+import { Captions, Hand, Mic, LogIn } from "lucide-react";
 import { useSafeReducedMotion } from "@/lib/hooks/useSafeReducedMotion";
 
 export default function HeroSection() {
@@ -26,9 +26,9 @@ export default function HeroSection() {
           <motion.span
             {...fadeUp}
             transition={{ duration: 0.5 }}
-            className="inline-flex items-center gap-2 px-3 py-1 rounded-full glass border border-white/10 text-[11px] font-semibold tracking-[0.18em] uppercase text-slate-300"
+            className="inline-flex items-center gap-2 rounded-full surface-glass-light px-3 py-1.5 text-[11px] font-semibold tracking-[0.18em] uppercase text-[var(--color-text-secondary)]"
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-warm" />
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-warm)]" />
             AI-Powered · Inclusive Communication
           </motion.span>
 
@@ -36,7 +36,7 @@ export default function HeroSection() {
             id="hero-heading"
             {...fadeUp}
             transition={{ duration: 0.6, delay: 0.05 }}
-            className="mt-6 text-5xl md:text-6xl lg:text-7xl font-bold font-heading leading-[1.05] tracking-tight"
+            className="mt-6 text-5xl md:text-6xl lg:text-7xl font-bold font-heading leading-[1.05] tracking-tight text-[var(--color-text-primary)]"
           >
             Communication{" "}
             <span className="text-gradient">without barriers.</span>
@@ -45,7 +45,7 @@ export default function HeroSection() {
           <motion.p
             {...fadeUp}
             transition={{ duration: 0.6, delay: 0.15 }}
-            className="mt-6 text-lg md:text-xl text-slate-400 max-w-xl mx-auto leading-relaxed"
+            className="mt-6 text-lg md:text-xl text-[var(--color-text-secondary)] max-w-xl mx-auto leading-relaxed"
           >
             HearMeAI turns speech into captions, text into voice, and ideas into
             signs — in real time, in two languages, for everyone.
@@ -54,24 +54,18 @@ export default function HeroSection() {
           <motion.div
             {...fadeUp}
             transition={{ duration: 0.6, delay: 0.25 }}
-            className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3"
+            className="mt-10 flex flex-col items-center justify-center"
           >
             <a
-              href="/app"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full font-semibold text-white focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-400/60"
+              href="/auth"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full px-8 py-4 font-semibold text-[var(--color-text-inverse)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[color-mix(in_srgb,var(--color-brand)_55%,transparent)] sm:w-auto"
               style={{
-                background: "linear-gradient(135deg, #22D3EE 0%, #6366F1 100%)",
-                boxShadow: "0 4px 24px rgba(34,211,238,0.35)",
+                background:
+                  "linear-gradient(135deg, var(--color-brand-400) 0%, var(--color-accent-500) 100%)",
+                boxShadow: "0 4px 24px var(--color-brand-glow)",
               }}
             >
-              Try Live Demo
-              <ArrowRight className="w-4 h-4" aria-hidden />
-            </a>
-            <a
-              href="/auth"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full font-medium text-slate-300 glass border border-white/10 hover:border-white/20 hover:text-white transition-all focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-400/60"
-            >
-              <LogIn className="w-4 h-4" aria-hidden />
+              <LogIn className="h-4 w-4" aria-hidden />
               Sign In
             </a>
           </motion.div>
@@ -80,7 +74,7 @@ export default function HeroSection() {
             {...fadeUp}
             transition={{ duration: 0.6, delay: 0.35 }}
             href="#problem"
-            className="mt-8 inline-flex items-center gap-2 text-sm text-slate-400 hover:text-slate-200 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/60 rounded"
+            className="mt-8 inline-flex items-center gap-2 rounded text-sm text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--color-brand)_55%,transparent)]"
           >
             <span aria-hidden>↓</span>
             See why we built this
@@ -99,25 +93,25 @@ function BackgroundField({ reduceMotion }: { reduceMotion: boolean }) {
       aria-hidden
     >
       <div
-        className={`${blobBase} top-1/4 left-1/4 w-96 h-96 bg-brand-600/20 ${
+        className={`${blobBase} left-1/4 top-1/4 h-96 w-96 bg-[color-mix(in_srgb,var(--color-brand-600)_20%,transparent)] ${
           reduceMotion ? "" : "animate-blob"
         }`}
       />
       <div
-        className={`${blobBase} top-1/3 right-1/4 w-[500px] h-[500px] bg-accent/20 blur-[150px] ${
+        className={`${blobBase} right-1/4 top-1/3 h-[500px] w-[500px] bg-[color-mix(in_srgb,var(--color-accent)_20%,transparent)] blur-[150px] ${
           reduceMotion ? "" : "animate-blob animation-delay-2000"
         }`}
       />
       <div
-        className={`${blobBase} bottom-1/4 left-1/2 w-80 h-80 bg-brand-400/20 blur-[100px] ${
+        className={`${blobBase} bottom-1/4 left-1/2 h-80 w-80 bg-[color-mix(in_srgb,var(--color-brand)_20%,transparent)] blur-[100px] ${
           reduceMotion ? "" : "animate-blob animation-delay-4000"
         }`}
       />
       {!reduceMotion && (
         <>
-          <Mic className="absolute top-[18%] right-[12%] w-10 h-10 text-white/[0.04]" />
-          <Captions className="absolute bottom-[22%] left-[8%] w-12 h-12 text-white/[0.05]" />
-          <Hand className="absolute top-[30%] left-[6%] w-8 h-8 text-white/[0.04]" />
+          <Mic className="absolute right-[12%] top-[18%] h-10 w-10 text-[color-mix(in_srgb,var(--color-brand-600)_12%,transparent)]" />
+          <Captions className="absolute bottom-[22%] left-[8%] h-12 w-12 text-[color-mix(in_srgb,var(--color-accent)_14%,transparent)]" />
+          <Hand className="absolute left-[6%] top-[30%] h-8 w-8 text-[color-mix(in_srgb,var(--color-brand-600)_10%,transparent)]" />
         </>
       )}
     </div>

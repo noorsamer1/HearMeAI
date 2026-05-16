@@ -11,7 +11,7 @@ export default function Home() {
   return (
     <main
       id="top"
-      className="min-h-screen bg-slate-950 text-slate-50 relative selection:bg-brand-500/30"
+      className="mesh-bg surface-page relative selection:bg-[color-mix(in_srgb,var(--color-brand)_20%,transparent)]"
     >
       <Navbar />
       <div className="relative z-10">

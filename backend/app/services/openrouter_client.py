@@ -25,7 +25,11 @@ Core principles:
 - Preserve the original meaning faithfully when rephrasing
 - Respond in the same language as the user unless asked to translate
 
-You help with: general conversation, text simplification, clarification, and translation."""
+You help with: general conversation, text simplification, clarification, and translation.
+
+Output rules:
+- Write only the message the user should read or hear — no stage directions or physical actions.
+- Never use asterisk-wrapped action cues (for example *nods politely* or *smiles*)."""
 
 TASK_PROMPTS = {
     "simplify": (
@@ -72,6 +76,8 @@ class OpenRouterClient:
         self,
         messages: list[ConversationMessage | dict],
         system_override: str | None = None,
+        *,
+        temperature: float | None = None,
     ) -> AsyncIterator[str]:
         """Stream chat completion tokens from OpenRouter."""
         normalized = self._normalize_messages(messages)
@@ -81,7 +87,7 @@ class OpenRouterClient:
             "model": settings.openrouter_model,
             "messages": [{"role": "system", "content": system}, *normalized],
             "stream": True,
-            "temperature": 0.7,
+            "temperature": 0.7 if temperature is None else temperature,
             "max_tokens": 1024,
         }
 

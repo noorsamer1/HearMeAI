@@ -16,7 +16,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     display_name: Mapped[str] = mapped_column(String(120), nullable=False)
-    user_type: Mapped[str] = mapped_column(String(16), nullable=False)  # deaf | mute | both
+    user_type: Mapped[str] = mapped_column(String(16), nullable=False)  # deaf | mute | both | normal
     locale: Mapped[str] = mapped_column(String(32), default="en", server_default="en")
     font_scale: Mapped[str] = mapped_column(String(16), default="normal", server_default="normal")
     high_contrast: Mapped[bool] = mapped_column(default=False, server_default="false")

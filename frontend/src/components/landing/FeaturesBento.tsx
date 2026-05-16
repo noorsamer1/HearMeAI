@@ -15,17 +15,20 @@ import { useSafeReducedMotion } from "@/lib/hooks/useSafeReducedMotion";
 type AccentKey = "audio" | "ai" | "visual" | "language";
 
 const ACCENT_RING: Record<AccentKey, string> = {
-  audio: "bg-brand-400",
-  ai: "bg-accent",
-  visual: "bg-teal-400",
-  language: "bg-amber-400",
+  audio: "bg-[var(--color-brand)]",
+  ai: "bg-[var(--color-accent)]",
+  visual: "bg-[var(--color-success)]",
+  language: "bg-[var(--color-warning)]",
 };
 
 const ACCENT_GLOW: Record<AccentKey, string> = {
-  audio: "from-brand-500/20 via-brand-500/0 to-brand-500/0",
-  ai: "from-accent/20 via-accent/0 to-accent/0",
-  visual: "from-teal-400/20 via-teal-400/0 to-teal-400/0",
-  language: "from-amber-400/20 via-amber-400/0 to-amber-400/0",
+  audio:
+    "from-[color-mix(in_srgb,var(--color-brand-500)_20%,transparent)] via-transparent to-transparent",
+  ai: "from-[color-mix(in_srgb,var(--color-accent-500)_20%,transparent)] via-transparent to-transparent",
+  visual:
+    "from-[color-mix(in_srgb,var(--color-success)_22%,transparent)] via-transparent to-transparent",
+  language:
+    "from-[color-mix(in_srgb,var(--color-warning)_22%,transparent)] via-transparent to-transparent",
 };
 
 type Tile = {
@@ -101,22 +104,22 @@ export default function FeaturesBento() {
     <section
       id="features"
       aria-labelledby="features-heading"
-      className="relative py-28 sm:py-32 bg-slate-950"
+      className="relative py-28 sm:py-32 bg-[var(--color-bg)]"
     >
       <div className="container px-6 mx-auto max-w-6xl">
         <div className="text-center max-w-2xl mx-auto mb-14">
-          <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full glass border border-white/10 text-[11px] font-semibold tracking-[0.2em] uppercase text-slate-300">
-            <span className="w-1.5 h-1.5 rounded-full bg-brand-400" />
+          <span className="inline-flex items-center gap-2 rounded-full surface-glass-light px-3 py-1 text-[11px] font-semibold tracking-[0.2em] uppercase text-[var(--color-text-secondary)]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-brand)]" />
             Core Features
           </span>
           <h2
             id="features-heading"
-            className="mt-5 text-4xl md:text-5xl font-bold font-heading tracking-tight"
+            className="mt-5 text-4xl md:text-5xl font-bold font-heading tracking-tight text-[var(--color-text-primary)]"
           >
             Everything HearMeAI{" "}
             <span className="text-gradient">does, in one place.</span>
           </h2>
-          <p className="mt-4 text-slate-400">
+          <p className="mt-4 text-[var(--color-text-secondary)]">
             Six capabilities, one accessible workspace.
           </p>
         </div>
@@ -152,10 +155,10 @@ function BentoTile({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-60px" }}
       transition={{ duration: 0.5, delay }}
-      className={`relative ${tile.span} group rounded-3xl glass border border-white/10 overflow-hidden ${
+      className={`relative ${tile.span} group rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm overflow-hidden ${
         reduceMotion
-          ? "transition-colors hover:border-white/20"
-          : "transition-all hover:-translate-y-1 hover:border-white/20"
+          ? "transition-colors hover:border-[var(--color-border-strong)]"
+          : "transition-all hover:-translate-y-1 hover:shadow-md hover:border-[var(--color-border-strong)]"
       }`}
       tabIndex={0}
     >
@@ -175,21 +178,21 @@ function BentoTile({
               className={`w-1.5 h-1.5 rounded-full ${ACCENT_RING[tile.accent]}`}
               aria-hidden
             />
-            <span className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
+            <span className="text-[11px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">
               {tile.accent}
             </span>
           </div>
           <Icon
-            className="w-5 h-5 text-slate-300 group-hover:text-white transition-colors"
+            className="h-5 w-5 text-[var(--color-text-muted)] transition-colors group-hover:text-[var(--color-brand)]"
             aria-hidden
           />
         </div>
 
         <div className="flex-1">
-          <h3 className="text-lg sm:text-xl font-semibold font-heading text-slate-100">
+          <h3 className="text-lg sm:text-xl font-semibold font-heading text-[var(--color-text-primary)]">
             {tile.title}
           </h3>
-          <p className="mt-2 text-sm sm:text-[15px] text-slate-400 leading-relaxed">
+          <p className="mt-2 text-sm sm:text-[15px] text-[var(--color-text-secondary)] leading-relaxed">
             {tile.description}
           </p>
         </div>
@@ -209,15 +212,15 @@ function CaptionsVisual({ reduceMotion }: { reduceMotion: boolean }) {
         {[0.4, 0.7, 1, 0.6, 0.9, 0.5, 0.8].map((h, i) => (
           <span
             key={i}
-            className={`w-1.5 bg-brand-300 rounded-full ${
+            className={`w-1.5 rounded-full bg-[var(--color-brand-300)] ${
               reduceMotion ? "" : "animate-waveform"
             }`}
             style={{ height: `${h * 100}%`, animationDelay: `${i * 0.08}s` }}
           />
         ))}
       </div>
-      <div className="flex-1 rounded-xl bg-slate-900/60 border border-white/5 px-3 py-2 text-xs text-slate-300">
-        <span className="text-slate-500">Live caption · </span>
+      <div className="flex-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-sunken)] px-3 py-2 text-xs text-[var(--color-text-primary)]">
+        <span className="text-[var(--color-text-tertiary)]">Live caption · </span>
         Hello — would you like a quick walkthrough?
       </div>
     </div>
@@ -227,17 +230,17 @@ function CaptionsVisual({ reduceMotion }: { reduceMotion: boolean }) {
 function VoiceVisual({ reduceMotion }: { reduceMotion: boolean }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="relative grid place-items-center w-10 h-10 rounded-full bg-brand-500/20 text-brand-200">
-        <Volume2 className="w-4 h-4" aria-hidden />
+      <span className="relative grid h-10 w-10 place-items-center rounded-full bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)] text-[var(--color-brand-dim)]">
+        <Volume2 className="h-4 w-4" aria-hidden />
         {!reduceMotion && (
-          <span className="absolute inset-0 rounded-full border border-brand-300/60 animate-ping" />
+          <span className="absolute inset-0 animate-ping rounded-full border border-[color-mix(in_srgb,var(--color-brand-300)_60%,transparent)]" />
         )}
       </span>
       <div className="flex items-end gap-[3px] h-6" aria-hidden>
         {[0.4, 0.7, 1, 0.5, 0.9].map((h, i) => (
           <span
             key={i}
-            className={`w-[3px] bg-slate-200 rounded-full ${
+            className={`w-[3px] rounded-full bg-[color-mix(in_srgb,var(--color-brand)_40%,transparent)] ${
               reduceMotion ? "" : "animate-waveform"
             }`}
             style={{ height: `${h * 100}%`, animationDelay: `${i * 0.1}s` }}
@@ -251,20 +254,20 @@ function VoiceVisual({ reduceMotion }: { reduceMotion: boolean }) {
 function AssistVisual() {
   return (
     <div className="grid sm:grid-cols-2 gap-3 text-xs">
-      <div className="rounded-xl bg-slate-900/60 border border-white/5 p-3">
-        <p className="uppercase tracking-[0.18em] text-[10px] text-slate-500 mb-1">
+      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-sunken)] p-3">
+        <p className="uppercase tracking-[0.18em] text-[10px] text-[var(--color-text-tertiary)] mb-1">
           Original
         </p>
-        <p className="text-slate-300">
+        <p className="text-[var(--color-text-secondary)]">
           The neural transcription stack synthesises multilingual real-time
           captions.
         </p>
       </div>
-      <div className="rounded-xl bg-accent/10 border border-accent/30 p-3">
-        <p className="uppercase tracking-[0.18em] text-[10px] text-accent mb-1">
+      <div className="rounded-xl border border-[color-mix(in_srgb,var(--color-accent)_25%,transparent)] bg-[var(--color-accent-muted)] p-3">
+        <p className="mb-1 text-[10px] uppercase tracking-[0.18em] text-[var(--color-accent)]">
           Simplified
         </p>
-        <p className="text-slate-100">
+        <p className="text-[var(--color-text-primary)]">
           HearMeAI shows captions while you speak.
         </p>
       </div>
@@ -274,14 +277,14 @@ function AssistVisual() {
 
 function SignerVisual({ reduceMotion }: { reduceMotion: boolean }) {
   return (
-    <div className="aspect-video rounded-xl bg-gradient-to-br from-teal-500/15 via-brand-500/10 to-accent/10 border border-white/5 grid place-items-center relative overflow-hidden">
+    <div className="relative grid aspect-video place-items-center overflow-hidden rounded-xl border border-[var(--color-border)] bg-gradient-to-br from-[color-mix(in_srgb,var(--color-success)_15%,transparent)] via-[color-mix(in_srgb,var(--color-brand)_10%,transparent)] to-[color-mix(in_srgb,var(--color-accent)_10%,transparent)]">
       <Hand
-        className={`w-10 h-10 text-teal-200 ${
+        className={`h-10 w-10 text-[var(--color-success)] ${
           reduceMotion ? "" : "animate-pulse"
         }`}
         aria-hidden
       />
-      <span className="absolute bottom-2 right-3 text-[10px] uppercase tracking-[0.18em] text-slate-400">
+      <span className="absolute bottom-2 right-3 text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">
         signing
       </span>
     </div>
@@ -290,21 +293,21 @@ function SignerVisual({ reduceMotion }: { reduceMotion: boolean }) {
 
 function BilingualVisual() {
   return (
-    <div className="inline-flex items-center gap-2 rounded-full glass border border-white/10 px-3 py-1.5 text-xs">
-      <span className="font-semibold text-slate-100">EN</span>
-      <span className="text-slate-500">⇄</span>
-      <span className="font-semibold text-slate-100">AR</span>
-      <span className="text-slate-500">·</span>
-      <span className="text-slate-400">RTL ready</span>
+    <div className="inline-flex items-center gap-2 rounded-full surface-glass-light border border-[var(--color-border)] px-3 py-1.5 text-xs">
+      <span className="font-semibold text-[var(--color-text-primary)]">EN</span>
+      <span className="text-[var(--color-text-tertiary)]">⇄</span>
+      <span className="font-semibold text-[var(--color-text-primary)]">AR</span>
+      <span className="text-[var(--color-text-tertiary)]">·</span>
+      <span className="text-[var(--color-text-secondary)]">RTL ready</span>
     </div>
   );
 }
 
 function RoomsVisual() {
   return (
-    <div className="inline-flex items-center gap-2 rounded-xl glass border border-white/10 px-3 py-2 text-xs font-mono text-slate-200 tracking-[0.2em]">
-      <span className="text-slate-500">CODE</span>
-      <span className="text-slate-100">7K · 3M · 9X</span>
+    <div className="inline-flex items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-sunken)] px-3 py-2 text-xs font-mono text-[var(--color-text-primary)] tracking-[0.2em]">
+      <span className="text-[var(--color-text-tertiary)]">CODE</span>
+      <span>7K · 3M · 9X</span>
     </div>
   );
 }

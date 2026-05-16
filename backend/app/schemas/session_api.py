@@ -54,7 +54,11 @@ class MessagesPage(BaseModel):
 
 class JoinSessionRequest(BaseModel):
     invite_code: str = Field(min_length=4, max_length=32)
-    role: str = Field(pattern="^(deaf|mute)$")
+    role: str | None = Field(
+        default=None,
+        pattern="^(deaf|mute)$",
+        description="Deprecated: derived from user profile when omitted.",
+    )
 
 
 class UserPreferencesPatch(BaseModel):
@@ -106,3 +110,19 @@ class MatchEnqueueResponse(BaseModel):
 class MatchResultResponse(BaseModel):
     matched: bool
     session_id: str | None = None
+
+
+class CameraSentimentRequest(BaseModel):
+    """JPEG/PNG frame as base64 or data URL from the client camera."""
+
+    image_base64: str = Field(min_length=64, description="Base64 or data-URL image payload")
+    text_label: str | None = Field(default=None, max_length=32)
+    text_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+
+
+class CameraSentimentResponse(BaseModel):
+    label: str
+    confidence: float
+    method: str
+    fused_label: str | None = None
+    fused_confidence: float | None = None

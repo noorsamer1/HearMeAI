@@ -29,12 +29,15 @@ export function LiveCaptionPanel() {
       <div className="workspace-subtle-header flex items-center gap-2 px-4 py-3">
         <div
           className={clsx(
-            "w-8 h-8 rounded-lg flex items-center justify-center border",
-            isListening ? "bg-blue-500/20" : "bg-white/5"
+            "w-8 h-8 rounded-lg flex items-center justify-center border border-[var(--color-border)]",
+            isListening ? "bg-[var(--color-brand-muted)]" : "bg-[var(--color-surface-raised)]"
           )}
         >
           <Captions
-            className={clsx("w-4 h-4", isListening ? "text-blue-400" : "text-[var(--color-text-muted)]")}
+            className={clsx(
+              "w-4 h-4",
+              isListening ? "text-[var(--color-brand)]" : "text-[var(--color-text-muted)]"
+            )}
           />
         </div>
         <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">
@@ -45,8 +48,8 @@ export function LiveCaptionPanel() {
         </span>
         {isListening && (
           <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-            <span className="text-xs text-blue-400">Live</span>
+            <span className="w-2 h-2 rounded-full bg-[var(--color-brand)] animate-pulse" />
+            <span className="text-xs text-[var(--color-brand)]">Live</span>
           </div>
         )}
       </div>
@@ -64,15 +67,20 @@ export function LiveCaptionPanel() {
           </div>
           <div className="flex flex-wrap gap-2 text-[11px]">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-border)] bg-[var(--color-bg)]/60 px-2 py-1 text-[var(--color-text-muted)]">
-              <Wifi className={clsx("w-3.5 h-3.5", isConnected ? "text-emerald-400" : "text-rose-400")} />
+              <Wifi
+                className={clsx(
+                  "w-3.5 h-3.5",
+                  isConnected ? "text-[var(--color-success)]" : "text-[var(--color-error)]"
+                )}
+              />
               {isConnected ? "Connected" : "Disconnected"}
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-border)] bg-[var(--color-bg)]/60 px-2 py-1 text-[var(--color-text-muted)]">
-              <Activity className="w-3.5 h-3.5 text-brand-300" />
+              <Activity className="w-3.5 h-3.5 text-[var(--color-brand)]" />
               Status: {systemStatus}
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-border)] bg-[var(--color-bg)]/60 px-2 py-1 text-[var(--color-text-muted)]">
-              <Languages className="w-3.5 h-3.5 text-blue-300" />
+              <Languages className="w-3.5 h-3.5 text-[var(--color-accent)]" />
               {language.toUpperCase()}
             </span>
           </div>
@@ -93,22 +101,72 @@ export function LiveCaptionPanel() {
                 exit={{ opacity: 0 }}
                 className="flex flex-col gap-3"
               >
+                {/* Word-by-word animated caption */}
                 <div
                   className={clsx(
                     "p-4 rounded-xl border shadow-inner",
-                    "bg-blue-500/8 border-blue-500/20",
-                    "text-lg leading-relaxed text-[var(--color-text-primary)]"
+                    "bg-[var(--color-brand-muted)] border-[color-mix(in_srgb,var(--color-brand)_25%,transparent)]",
+                    "text-base leading-relaxed",
+                    // Interim captions are dimmer and italic
+                    systemStatus === "processing"
+                      ? "text-[var(--color-text-muted)] italic"
+                      : "text-[var(--color-text-primary)]"
                   )}
                   aria-live="polite"
                   aria-atomic="false"
                 >
-                  {liveCaption}
-                  <span className="inline-block w-0.5 h-5 bg-blue-400 ml-1 animate-pulse align-middle" />
+                  {/* Re-key on liveCaption so all words re-stagger on new caption */}
+                  <AnimatePresence key={liveCaption} mode="popLayout">
+                    {liveCaption.split(" ").filter(Boolean).map((word, i) => (
+                      <motion.span
+                        key={`${word}-${i}`}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        transition={{
+                          duration: 0.18,
+                          delay: i * 0.05,
+                          ease: "easeOut",
+                        }}
+                        className="inline-block mr-1"
+                      >
+                        {word}
+                      </motion.span>
+                    ))}
+                  </AnimatePresence>
+
+                  {/* Processing "..." indicator */}
+                  {systemStatus === "processing" && (
+                    <motion.span
+                      className="inline-flex items-end gap-0.5 ml-1 align-middle"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                    >
+                      {[0, 1, 2].map((i) => (
+                        <motion.span
+                          key={i}
+                          className="inline-block w-1 h-1 rounded-full bg-[var(--color-brand)]"
+                          animate={{ scaleY: [0.4, 1, 0.4] }}
+                          transition={{
+                            duration: 0.8,
+                            repeat: Infinity,
+                            delay: i * 0.15,
+                            ease: "easeInOut",
+                          }}
+                        />
+                      ))}
+                    </motion.span>
+                  )}
+
+                  {/* Cursor blink when listening */}
+                  {systemStatus !== "processing" && (
+                    <span className="inline-block w-0.5 h-5 bg-[var(--color-brand)] ml-1 animate-pulse align-middle" />
+                  )}
                 </div>
 
                 {isListening && (
                   <div className="flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
-                    <Mic className="w-3.5 h-3.5 text-blue-400" />
+                    <Mic className="w-3.5 h-3.5 text-[var(--color-brand)]" />
                     <span>{t.captions.listening}</span>
                   </div>
                 )}
@@ -128,7 +186,7 @@ export function LiveCaptionPanel() {
                       className={clsx(
                         "w-1 rounded-full transition-all",
                         isListening
-                          ? "bg-blue-400 animate-[waveBar_1s_ease-in-out_infinite]"
+                          ? "bg-[var(--color-brand)] animate-[waveBar_1s_ease-in-out_infinite]"
                           : "bg-[var(--color-border-strong)]"
                       )}
                       style={{
@@ -164,7 +222,8 @@ export function LiveCaptionPanel() {
               onClick={() => setSignDialect("ASL")}
               className={clsx(
                 "workspace-chip",
-                signDialect === "ASL" && "border-brand-400/45 bg-brand-500/15 text-brand-200"
+                signDialect === "ASL" &&
+                  "border-[color-mix(in_srgb,var(--color-brand)_45%,transparent)] bg-[var(--color-brand-muted)] text-[var(--color-text-primary)]"
               )}
               aria-pressed={signDialect === "ASL"}
             >
@@ -175,7 +234,8 @@ export function LiveCaptionPanel() {
               onClick={() => setSignDialect("BSL")}
               className={clsx(
                 "workspace-chip",
-                signDialect === "BSL" && "border-brand-400/45 bg-brand-500/15 text-brand-200"
+                signDialect === "BSL" &&
+                  "border-[color-mix(in_srgb,var(--color-brand)_45%,transparent)] bg-[var(--color-brand-muted)] text-[var(--color-text-primary)]"
               )}
               aria-pressed={signDialect === "BSL"}
             >
@@ -189,7 +249,8 @@ export function LiveCaptionPanel() {
                 onClick={() => setSignSpeed(speed)}
                 className={clsx(
                   "workspace-chip",
-                  signSpeed === speed && "border-amber-400/45 bg-amber-500/15 text-amber-200"
+                  signSpeed === speed &&
+                    "border-[color-mix(in_srgb,var(--color-warning)_45%,transparent)] bg-[var(--color-warning-bg)] text-[var(--color-warning)]"
                 )}
                 aria-pressed={signSpeed === speed}
               >

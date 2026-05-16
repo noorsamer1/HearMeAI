@@ -61,6 +61,8 @@ htmlcov/
 *.wav
 tmp_audio/
 backend/hearme.db
+backend/dev.db
+backend/sql_app.db
 
 # Cursor / AI tooling
 .cursor/

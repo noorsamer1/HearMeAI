@@ -44,6 +44,12 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning("db_seed_skipped", error=str(exc))
     start_redis_ws_listener()
+    if settings.camera_sentiment_provider.strip().lower() == "huggingface":
+        import asyncio
+
+        from app.services.facial_emotion_hf import preload_model
+
+        asyncio.create_task(asyncio.to_thread(preload_model))
     yield
     stop_redis_ws_listener()
     logger.info("Shutting down gracefully")

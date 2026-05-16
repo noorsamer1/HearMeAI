@@ -16,7 +16,7 @@ export function WaveformAnimation({
   volumeLevel = 0,
   barCount = 9,
   className,
-  color = "#60a5fa",
+  color = "var(--color-brand)",
 }: WaveformAnimationProps) {
   const bars = Array.from({ length: barCount });
 

@@ -4,9 +4,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Signpost } from "lucide-react";
 import { useSessionStore } from "@/lib/state/sessionStore";
 import { HologramPose, HologramSigner3D } from "@/components/avatar/HologramSigner3D";
+import SignLanguageWidget, { MotionPlan } from "@/components/avatar/SignLanguageWidget";
+import { HOLOGRAM_2D_DURATION_SCALE } from "@/lib/sign/playbackTiming";
 
 interface SignPreviewProps {
   embedded?: boolean;
+  /** When set, ignore the store's signPreview and show this phraseKey directly */
+  overridePhraseKey?: string;
+  /** Compact layout: smaller widget, no drag handle, no mode toggle */
+  compact?: boolean;
 }
 
 const SIGNER_OFFSET_KEY = "hearmeai-signer-offset-v3";
@@ -40,14 +46,15 @@ function readOffset(): Offset {
   }
 }
 
-export function SignPreview({ embedded = false }: SignPreviewProps) {
-  const { signPreview } = useSessionStore();
-  const hasPreview = Boolean(signPreview);
+export function SignPreview({ embedded = false, overridePhraseKey, compact = false }: SignPreviewProps) {
+  const { signPreview, signReplayNonce } = useSessionStore();
+  const hasPreview = overridePhraseKey ? true : Boolean(signPreview);
   const [stepIndex, setStepIndex] = useState(0);
   const [sequenceActive, setSequenceActive] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [offset, setOffset] = useState<Offset>({ right: 24, bottom: 140 });
+  const [use3DMode, setUse3DMode] = useState(false);
   const dragRef = useRef<{
     active: boolean;
     startX: number;
@@ -62,8 +69,12 @@ export function SignPreview({ embedded = false }: SignPreviewProps) {
     startBottom: 140,
   });
 
-  const phraseKey = signPreview?.phraseKey?.trim().toLowerCase() ?? "";
-  const llmPlan = signPreview?.motionPlan ?? [];
+  // When overridePhraseKey is set, use it directly (bypasses store)
+  const phraseKey = overridePhraseKey
+    ? overridePhraseKey.trim().toLowerCase()
+    : (signPreview?.phraseKey?.trim().toLowerCase() ?? "");
+  const spellPlan = overridePhraseKey ? undefined : signPreview?.spellPlan;
+  const llmPlan = overridePhraseKey ? [] : (signPreview?.motionPlan ?? []);
   const sequence = useMemo(() => {
     if (llmPlan.length > 0) {
       return llmPlan.map((step) => step.pose as HologramPose);
@@ -77,12 +88,16 @@ export function SignPreview({ embedded = false }: SignPreviewProps) {
     return sequence.map(() => 900);
   }, [llmPlan, sequence]);
   const sequenceSignature = useMemo(() => {
+    if (overridePhraseKey) return `ov:${overridePhraseKey}`;
     if (!signPreview) return "none";
+    const sp = (signPreview.spellPlan ?? [])
+      .map((s) => `${s.label}:${s.durationMs}`)
+      .join("|");
     const planSig = (signPreview.motionPlan ?? [])
       .map((step) => `${step.pose}:${step.durationMs}`)
       .join("|");
-    return `${signPreview.phraseKey}|${planSig}`;
-  }, [signPreview]);
+    return `${signPreview.phraseKey}|spell:${sp}|plan:${planSig}|r:${signReplayNonce}`;
+  }, [signPreview, overridePhraseKey, signReplayNonce]);
 
   const activePose = sequenceActive ? sequence[Math.min(stepIndex, sequence.length - 1)] : "neutral";
 
@@ -160,14 +175,75 @@ export function SignPreview({ embedded = false }: SignPreviewProps) {
     };
   }, [embedded, isMobile]);
 
+  const hologram2dSlow = embedded && !compact && !overridePhraseKey;
+
+  // Build a MotionPlan for the 2-D widget: finger-spelling overrides backend poses.
+  const widgetMotionPlan: MotionPlan | undefined =
+    spellPlan && spellPlan.length > 0
+      ? { poses: spellPlan }
+      : llmPlan.length > 0
+        ? {
+            poses: llmPlan.map((step) => ({
+              label: step.pose,
+              durationMs: step.durationMs,
+            })),
+          }
+        : undefined;
+
+  /** Shared toggle button rendered in 3-D mode corners */
+  const ModeToggle = ({ className = "" }: { className?: string }) => (
+    <button
+      type="button"
+      onClick={() => setUse3DMode((v) => !v)}
+      title={use3DMode ? "Switch to 2D widget" : "Switch to 3D avatar"}
+      aria-label={use3DMode ? "Switch to 2D widget" : "Switch to 3D avatar"}
+      className={`absolute z-20 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-raised)]/80 px-2 py-1 text-[10px] font-semibold text-[var(--color-text-muted)] backdrop-blur-sm transition hover:border-[var(--color-brand)] hover:text-[var(--color-brand)] ${className}`}
+    >
+      {use3DMode ? "2D" : "3D"}
+    </button>
+  );
+
+  // Compact mode: used in notification popups — no drag, no mode toggle
+  if (compact || overridePhraseKey) {
+    return (
+      <div
+        className="relative w-full flex items-center justify-center p-2"
+        style={{ minHeight: 120 }}
+        role="region"
+        aria-label="Sign language preview"
+      >
+        <SignLanguageWidget
+          phrase={phraseKey || "hello"}
+          motionPlan={widgetMotionPlan}
+          replayNonce={signReplayNonce}
+          className="w-full max-w-[160px]"
+        />
+      </div>
+    );
+  }
+
   if (embedded) {
     return (
       <div
-        className="w-full h-full min-h-[290px]"
+        className="relative w-full h-full min-h-[290px]"
         role="region"
         aria-label="Signer preview"
       >
-        <HologramSigner3D pose={activePose} />
+        <ModeToggle className="top-2 right-2" />
+        {use3DMode ? (
+          <HologramSigner3D pose={activePose} />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center p-3">
+            <SignLanguageWidget
+              phrase={phraseKey || "neutral"}
+              motionPlan={widgetMotionPlan}
+              replayNonce={signReplayNonce}
+              className="w-full max-w-[220px]"
+              stepDurationScale={hologram2dSlow ? HOLOGRAM_2D_DURATION_SCALE : 1}
+              transitionDurationSec={hologram2dSlow ? 0.34 : 0.22}
+            />
+          </div>
+        )}
       </div>
     );
   }
@@ -179,10 +255,10 @@ export function SignPreview({ embedded = false }: SignPreviewProps) {
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
-            className="fixed right-4 bottom-40 z-[80] rounded-full border border-brand-400/40 bg-brand-500/80 backdrop-blur px-3 py-2 text-xs font-semibold text-white shadow-lg inline-flex items-center gap-1.5 hover:bg-brand-500"
+            className="fixed right-4 bottom-40 z-[80] inline-flex items-center gap-1.5 rounded-full border border-[color-mix(in_srgb,var(--color-brand)_40%,transparent)] bg-[color-mix(in_srgb,var(--color-brand)_80%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--color-text-inverse)] shadow-lg backdrop-blur hover:bg-[var(--color-brand)]"
             aria-label="Open signer panel"
           >
-            <Signpost className="w-4 h-4 text-brand-300" />
+            <Signpost className="h-4 w-4 text-[var(--color-brand-300)]" />
             Signer
           </button>
         )}
@@ -196,8 +272,26 @@ export function SignPreview({ embedded = false }: SignPreviewProps) {
               aria-label="Close signer panel"
             />
             <div className="absolute inset-x-0 bottom-24 flex items-end justify-center pointer-events-none">
-              <div className="pointer-events-auto h-[50vh] max-h-[430px] min-h-[280px] w-[min(72vw,320px)]">
-                <HologramSigner3D pose={activePose} />
+              <div className="relative pointer-events-auto h-[50vh] max-h-[430px] min-h-[280px] w-[min(72vw,320px)]">
+                <button
+                  type="button"
+                  onClick={() => setUse3DMode((v) => !v)}
+                  className="absolute top-2 right-2 z-20 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-raised)]/80 px-2 py-1 text-[10px] font-semibold text-[var(--color-text-muted)] backdrop-blur-sm hover:border-[var(--color-brand)] hover:text-[var(--color-brand)]"
+                >
+                  {use3DMode ? "2D" : "3D"}
+                </button>
+                {use3DMode ? (
+                  <HologramSigner3D pose={activePose} />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center p-4">
+                    <SignLanguageWidget
+                      phrase={phraseKey || "neutral"}
+                      motionPlan={widgetMotionPlan}
+                      replayNonce={signReplayNonce}
+                      className="w-full max-w-[240px]"
+                    />
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -225,7 +319,33 @@ export function SignPreview({ embedded = false }: SignPreviewProps) {
         dragRef.current.startBottom = offset.bottom;
       }}
     >
-      <HologramSigner3D pose={activePose} />
+      {/* 3D / 2D toggle — top-right corner */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setUse3DMode((v) => !v);
+        }}
+        onPointerDown={(e) => e.stopPropagation()}
+        title={use3DMode ? "Switch to 2D widget" : "Switch to 3D avatar"}
+        aria-label={use3DMode ? "Switch to 2D widget" : "Switch to 3D avatar"}
+        className="absolute top-2 right-2 z-20 cursor-pointer rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-raised)]/80 px-2 py-1 text-[10px] font-semibold text-[var(--color-text-muted)] backdrop-blur-sm transition hover:border-[var(--color-brand)] hover:text-[var(--color-brand)]"
+      >
+        {use3DMode ? "2D" : "3D"}
+      </button>
+
+      {use3DMode ? (
+        <HologramSigner3D pose={activePose} />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center p-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-raised)]/70 backdrop-blur-sm">
+          <SignLanguageWidget
+            phrase={phraseKey || "neutral"}
+            motionPlan={widgetMotionPlan}
+            replayNonce={signReplayNonce}
+            className="w-full"
+          />
+        </div>
+      )}
     </div>
   );
 }

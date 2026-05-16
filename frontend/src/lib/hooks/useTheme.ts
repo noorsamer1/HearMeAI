@@ -5,9 +5,18 @@ import { useSessionStore } from "@/lib/state/sessionStore";
 
 const HIGH_CONTRAST_STORAGE_KEY = "hearmeai-high-contrast";
 const FONT_SIZE_STORAGE_KEY = "hearmeai-font-size";
+const COLOR_MODE_STORAGE_KEY = "hearmeai-color-mode";
 
 export function useTheme() {
-  const { language, isHighContrast, fontSize, setIsHighContrast, setFontSize } = useSessionStore();
+  const {
+    language,
+    isHighContrast,
+    colorMode,
+    fontSize,
+    setIsHighContrast,
+    setColorMode,
+    setFontSize,
+  } = useSessionStore();
 
   useEffect(() => {
     const savedContrast = window.localStorage.getItem(HIGH_CONTRAST_STORAGE_KEY);
@@ -19,7 +28,12 @@ export function useTheme() {
     if (savedFontSize === "normal" || savedFontSize === "large" || savedFontSize === "xlarge") {
       setFontSize(savedFontSize);
     }
-  }, [setFontSize, setIsHighContrast]);
+
+    const savedMode = window.localStorage.getItem(COLOR_MODE_STORAGE_KEY);
+    if (savedMode === "light" || savedMode === "dark") {
+      setColorMode(savedMode);
+    }
+  }, [setFontSize, setIsHighContrast, setColorMode]);
 
   useEffect(() => {
     const html = document.documentElement;
@@ -39,4 +53,14 @@ export function useTheme() {
     html.setAttribute("data-font-size", fontSize);
     window.localStorage.setItem(FONT_SIZE_STORAGE_KEY, fontSize);
   }, [fontSize]);
+
+  useEffect(() => {
+    const html = document.documentElement;
+    // Apply data-theme attribute for CSS variable switching
+    html.setAttribute("data-theme", colorMode);
+    // Apply/remove "dark" class so Tailwind darkMode:"class" works project-wide
+    html.classList.toggle("dark", colorMode === "dark");
+    window.localStorage.setItem(COLOR_MODE_STORAGE_KEY, colorMode);
+    html.style.colorScheme = colorMode;
+  }, [colorMode]);
 }

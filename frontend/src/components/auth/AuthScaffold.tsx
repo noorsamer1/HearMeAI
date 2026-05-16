@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Ear, Languages, Volume2, Zap } from "lucide-react";
+import { Ear, Languages, Mic, Volume2 } from "lucide-react";
 
 type AuthScaffoldProps = {
   title: string;
@@ -21,140 +21,88 @@ export default function AuthScaffold({
   children,
 }: AuthScaffoldProps) {
   return (
-    <div
-      className="relative min-h-screen overflow-hidden"
-      style={{ backgroundColor: "var(--color-bg)", color: "var(--color-text-primary)" }}
-    >
-      {/* Ambient background */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(circle at 20% 20%, rgba(34,211,238,0.12), transparent 45%), " +
-            "radial-gradient(circle at 80% 75%, rgba(167,139,250,0.12), transparent 45%)",
-        }}
-      />
-
+    <div className="mesh-bg surface-page relative min-h-screen overflow-hidden">
       <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl items-center px-6 py-10">
         <div className="grid w-full gap-6 lg:grid-cols-2">
-
-          {/* ── Left panel (brand showcase) ── */}
+          {/* Left: brand panel (desktop) */}
           <section
-            className="hidden lg:flex lg:flex-col lg:justify-between rounded-3xl p-8 overflow-hidden relative"
-            style={{
-              background: "linear-gradient(135deg, rgba(12,18,32,0.8), rgba(23,32,53,0.6))",
-              border: "1px solid rgba(34,211,238,0.15)",
-              backdropFilter: "blur(20px)",
-            }}
+            className="relative hidden overflow-hidden rounded-3xl border border-[var(--color-border-strong)] surface-glass-brand p-8 lg:flex lg:flex-col lg:justify-between"
           >
-            {/* Glow orbs */}
             <div
               aria-hidden
-              className="absolute top-0 right-0 w-64 h-64 rounded-full blur-3xl opacity-20 pointer-events-none"
-              style={{ background: "radial-gradient(circle, #22D3EE, transparent)" }}
+              className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-[color-mix(in_srgb,var(--color-brand)_22%,transparent)] blur-3xl"
             />
             <div
               aria-hidden
-              className="absolute bottom-0 left-0 w-48 h-48 rounded-full blur-3xl opacity-15 pointer-events-none"
-              style={{ background: "radial-gradient(circle, #A78BFA, transparent)" }}
+              className="pointer-events-none absolute -bottom-12 -left-12 h-48 w-48 rounded-full bg-[color-mix(in_srgb,var(--color-accent)_15%,transparent)] blur-3xl"
             />
 
             <div className="relative">
-              {/* Logo mark */}
-              <div className="flex items-center gap-3 mb-8">
-                <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center"
-                  style={{ background: "linear-gradient(135deg, #0891B2, #6366F1)" }}
-                >
-                  <Zap className="w-5 h-5 text-white" aria-hidden />
+              <div className="mb-8 flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--color-brand-600)] to-[var(--color-accent-500)] shadow-[var(--shadow-brand)]">
+                  <Mic className="h-5 w-5 text-[var(--color-text-inverse)]" aria-hidden />
                 </div>
-                <span className="text-xl font-bold font-heading">
-                  HearMe<span style={{ color: "var(--color-brand)" }}>AI</span>
+                <span className="text-xl font-bold font-heading text-[var(--color-text-primary)]">
+                  HearMe<span className="text-[var(--color-brand)]">AI</span>
                 </span>
               </div>
 
-              <span
-                className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-semibold uppercase tracking-widest mb-6"
-                style={{
-                  border: "1px solid rgba(34,211,238,0.25)",
-                  background: "rgba(34,211,238,0.08)",
-                  color: "var(--color-brand)",
-                }}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+              <span className="badge badge-brand mb-6 inline-flex items-center gap-2 tracking-[0.18em]">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" />
                 AI-Powered Communication
               </span>
 
-              <h2 className="text-4xl font-bold font-heading leading-tight">
-                Secure access for{" "}
-                <span
-                  style={{
-                    background: "linear-gradient(135deg, #22D3EE, #A78BFA)",
-                    WebkitBackgroundClip: "text",
-                    WebkitTextFillColor: "transparent",
-                    backgroundClip: "text",
-                  }}
-                >
-                  inclusive communication.
-                </span>
+              <h2 className="text-4xl font-bold font-heading leading-tight text-[var(--color-text-primary)]">
+                Secure access for <span className="text-gradient">inclusive communication.</span>
               </h2>
-              <p className="mt-4 max-w-md leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
+              <p className="mt-4 max-w-md leading-relaxed text-[var(--color-text-secondary)]">
                 Join live rooms, create sessions, and communicate with captions,
                 voice, and bilingual support — all in real time.
               </p>
             </div>
 
-            <div className="space-y-3 relative">
+            <div className="relative space-y-3">
               <FeatureRow
                 icon={<Ear className="h-4 w-4" aria-hidden />}
                 text="Live captions for deaf and hard-of-hearing users"
-                color="brand"
+                tone="brand"
               />
               <FeatureRow
                 icon={<Volume2 className="h-4 w-4" aria-hidden />}
                 text="Natural voice playback for non-speaking users"
-                color="accent"
+                tone="accent"
               />
               <FeatureRow
                 icon={<Languages className="h-4 w-4" aria-hidden />}
                 text="English and Arabic support with RTL handling"
-                color="warm"
+                tone="warm"
               />
             </div>
           </section>
 
-          {/* ── Right panel (form) ── */}
-          <section
-            className="w-full rounded-3xl p-6 shadow-2xl sm:p-8"
-            style={{
-              background: "rgba(12,18,32,0.75)",
-              border: "1px solid rgba(255,255,255,0.1)",
-              backdropFilter: "blur(20px)",
-            }}
-          >
-            {/* Mobile logo */}
-            <div className="flex items-center gap-2 mb-6 lg:hidden">
-              <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center"
-                style={{ background: "linear-gradient(135deg, #0891B2, #6366F1)" }}
-              >
-                <Zap className="w-4 h-4 text-white" aria-hidden />
+          {/* Right: form */}
+          <section className="w-full rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-lg)] sm:p-8">
+            <div className="mb-6 flex items-center gap-2 lg:hidden">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[var(--color-brand-600)] to-[var(--color-accent-500)] shadow-sm">
+                <Mic className="h-4 w-4 text-[var(--color-text-inverse)]" aria-hidden />
               </div>
-              <span className="font-bold">HearMe<span style={{ color: "var(--color-brand)" }}>AI</span></span>
+              <span className="font-bold text-[var(--color-text-primary)]">
+                HearMe<span className="text-[var(--color-brand)]">AI</span>
+              </span>
             </div>
 
-            <h1 className="text-3xl font-bold font-heading tracking-tight">{title}</h1>
-            <p className="mt-2" style={{ color: "var(--color-text-secondary)" }}>{subtitle}</p>
+            <h1 className="text-3xl font-bold font-heading tracking-tight text-[var(--color-text-primary)]">
+              {title}
+            </h1>
+            <p className="mt-2 text-[var(--color-text-secondary)]">{subtitle}</p>
 
             <div className="mt-8">{children}</div>
 
-            <p className="mt-6 text-center text-sm" style={{ color: "var(--color-text-muted)" }}>
+            <p className="mt-6 text-center text-sm text-[var(--color-text-muted)]">
               {switchText}{" "}
               <Link
                 href={switchHref}
-                className="font-medium hover:underline transition-colors"
-                style={{ color: "var(--color-brand)" }}
+                className="font-medium text-[var(--color-brand)] hover:text-[var(--color-brand-dim)] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--color-brand)_55%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-surface)] rounded"
               >
                 {switchAction}
               </Link>
@@ -162,8 +110,7 @@ export default function AuthScaffold({
             <p className="mt-2 text-center text-sm">
               <Link
                 href="/"
-                className="hover:underline transition-colors"
-                style={{ color: "var(--color-text-muted)" }}
+                className="text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text-primary)] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--color-brand)_55%,transparent)] rounded"
               >
                 ← Back to landing page
               </Link>
@@ -178,35 +125,40 @@ export default function AuthScaffold({
 function FeatureRow({
   icon,
   text,
-  color,
+  tone,
 }: {
   icon: React.ReactNode;
   text: string;
-  color: "brand" | "accent" | "warm";
+  tone: "brand" | "accent" | "warm";
 }) {
-  const colorMap = {
-    brand: { bg: "rgba(34,211,238,0.1)", border: "rgba(34,211,238,0.2)", icon: "rgba(34,211,238,0.8)" },
-    accent: { bg: "rgba(167,139,250,0.1)", border: "rgba(167,139,250,0.2)", icon: "rgba(167,139,250,0.8)" },
-    warm: { bg: "rgba(251,191,36,0.1)", border: "rgba(251,191,36,0.2)", icon: "rgba(251,191,36,0.8)" },
+  const styles: Record<"brand" | "accent" | "warm", { row: string; iconWrap: string }> = {
+    brand: {
+      row: "border-[color-mix(in_srgb,var(--color-brand-200)_80%,transparent)] bg-[var(--color-brand-muted)]",
+      iconWrap: "bg-[color-mix(in_srgb,var(--color-brand-100)_85%,var(--color-surface))] text-[var(--color-brand-dim)]",
+    },
+    accent: {
+      row: "border-[color-mix(in_srgb,var(--color-accent-200)_80%,transparent)] bg-[var(--color-accent-muted)]",
+      iconWrap:
+        "bg-[color-mix(in_srgb,var(--color-accent-100)_85%,var(--color-surface))] text-[var(--color-accent-dim)]",
+    },
+    warm: {
+      row: "border-[color-mix(in_srgb,var(--color-warning)_35%,transparent)] bg-[var(--color-warning-bg)]",
+      iconWrap: "bg-[color-mix(in_srgb,var(--color-warning)_18%,var(--color-surface))] text-[var(--color-warning)]",
+    },
   };
-  const c = colorMap[color];
+
+  const s = styles[tone];
 
   return (
     <div
-      className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm"
-      style={{
-        background: c.bg,
-        border: `1px solid ${c.border}`,
-        color: "var(--color-text-secondary)",
-      }}
+      className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-sm text-[var(--color-text-primary)] ${s.row}`}
     >
       <span
-        className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full"
-        style={{ background: c.bg, color: c.icon }}
+        className={`inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full ${s.iconWrap}`}
       >
         {icon}
       </span>
-      <span>{text}</span>
+      <span className="text-[var(--color-text-secondary)]">{text}</span>
     </div>
   );
 }

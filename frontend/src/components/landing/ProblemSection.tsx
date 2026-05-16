@@ -43,7 +43,7 @@ export default function ProblemSection() {
     <section
       id="problem"
       aria-labelledby="problem-heading"
-      className="relative py-28 sm:py-32 bg-slate-950"
+      className="relative py-28 sm:py-32 bg-[var(--color-bg-subtle)]"
     >
       {/* Subtle background tint */}
       <div
@@ -57,9 +57,9 @@ export default function ProblemSection() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
           transition={{ duration: 0.5 }}
-          className="inline-flex items-center gap-2 px-3 py-1 rounded-full glass border border-white/10 text-[11px] font-semibold tracking-[0.2em] uppercase text-slate-300"
+          className="inline-flex items-center gap-2 rounded-full surface-glass-light px-3 py-1 text-[11px] font-semibold tracking-[0.2em] uppercase text-[var(--color-text-secondary)]"
         >
-          <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+          <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-error)]" />
           The Problem
         </motion.span>
 
@@ -69,10 +69,10 @@ export default function ProblemSection() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
           transition={{ duration: 0.6, delay: 0.05 }}
-          className="mt-6 text-4xl md:text-5xl lg:text-6xl font-bold font-heading tracking-tight leading-[1.1]"
+          className="mt-6 text-4xl md:text-5xl lg:text-6xl font-bold font-heading tracking-tight leading-[1.1] text-[var(--color-text-primary)]"
         >
           Every conversation has a barrier.{" "}
-          <span className="text-slate-400">Most people just don&apos;t see it.</span>
+          <span className="text-[var(--color-text-secondary)]">Most people just don&apos;t see it.</span>
         </motion.h2>
 
         <motion.p
@@ -80,7 +80,7 @@ export default function ProblemSection() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
           transition={{ duration: 0.6, delay: 0.15 }}
-          className="mt-6 text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed"
+          className="mt-6 text-lg text-[var(--color-text-secondary)] max-w-2xl mx-auto leading-relaxed"
         >
           Hundreds of millions of people are deaf, hard-of-hearing, or non-speaking.
           Today&apos;s tools force them to pick between speed, accuracy, or
@@ -89,7 +89,10 @@ export default function ProblemSection() {
         </motion.p>
 
         {/* Subtle waveform → captions accent */}
-        <div className="mt-10 mx-auto h-px w-24 bg-gradient-to-r from-transparent via-brand-400/60 to-transparent" aria-hidden />
+        <div
+          className="mx-auto mt-10 h-px w-24 bg-gradient-to-r from-transparent via-[color-mix(in_srgb,var(--color-brand)_60%,transparent)] to-transparent"
+          aria-hidden
+        />
 
         <ul className="mt-14 grid gap-6 sm:grid-cols-3 text-left">
           {STATS.map((stat, idx) => (
@@ -97,7 +100,7 @@ export default function ProblemSection() {
           ))}
         </ul>
 
-        <p className="mt-10 text-xs text-slate-500">
+        <p className="mt-10 text-xs text-[var(--color-text-tertiary)]">
           Sources cited inline. Numbers reflect publicly available global health
           and language statistics.
         </p>
@@ -145,7 +148,7 @@ function StatTile({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-60px" }}
       transition={{ duration: 0.5, delay }}
-      className="glass border border-white/10 rounded-2xl p-6 hover:border-white/20 transition-colors"
+      className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-sm transition-shadow hover:shadow-md"
     >
       <p
         className="text-4xl md:text-5xl font-bold font-heading text-gradient leading-none"
@@ -153,14 +156,14 @@ function StatTile({
       >
         {stat.display(shown)}
       </p>
-      <p className="mt-3 text-sm text-slate-300 leading-relaxed">{stat.label}</p>
-      <p className="mt-3 text-[11px] uppercase tracking-[0.18em] text-slate-500">
+      <p className="mt-3 text-sm text-[var(--color-text-primary)] leading-relaxed">{stat.label}</p>
+      <p className="mt-3 text-[11px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">
         Source:{" "}
         <a
           href={stat.sourceUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="underline decoration-dotted hover:text-slate-300"
+          className="underline decoration-dotted hover:text-[var(--color-text-secondary)]"
         >
           {stat.source}
         </a>

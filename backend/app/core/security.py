@@ -47,6 +47,18 @@ def create_ws_ticket(user_id: uuid.UUID, session_id: uuid.UUID) -> str:
     return jwt.encode(payload, s.jwt_secret_key, algorithm=s.jwt_algorithm)
 
 
+def create_notify_ticket(user_id: uuid.UUID) -> str:
+    """Short-lived token for the /ws/notify global notification socket (no session required)."""
+    s = get_settings()
+    expire = datetime.now(timezone.utc) + timedelta(minutes=s.ws_ticket_expire_minutes)
+    payload = {
+        "sub": str(user_id),
+        "typ": "notify",
+        "exp": expire,
+    }
+    return jwt.encode(payload, s.jwt_secret_key, algorithm=s.jwt_algorithm)
+
+
 def decode_token(token: str) -> dict:
     s = get_settings()
     return jwt.decode(token, s.jwt_secret_key, algorithms=[s.jwt_algorithm])

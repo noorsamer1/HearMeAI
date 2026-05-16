@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, useScroll } from "framer-motion";
-import { Menu, Mic, Play, X } from "lucide-react";
+import { Menu, Mic, X } from "lucide-react";
 import { useSafeReducedMotion } from "@/lib/hooks/useSafeReducedMotion";
 
 type NavLink = { label: string; href: string };
@@ -46,24 +46,22 @@ export default function Navbar() {
       animate={{ y: 0 }}
       transition={{ type: "spring", stiffness: 100, damping: 20 }}
       aria-label="Primary"
-      className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${
-        isScrolled
-          ? "bg-slate-950/85 backdrop-blur-xl border-b border-white/5 py-3 shadow-lg"
-          : "bg-transparent py-5"
+      className={`fixed top-0 left-0 right-0 z-[var(--z-sticky)] transition-all duration-300 ${
+        isScrolled ? "nav-blur py-3" : "nav-transparent py-5"
       }`}
     >
       <div className="container mx-auto px-6 max-w-7xl flex items-center justify-between">
         <a href="#top" className="flex items-center gap-2 group" aria-label="HearMeAI home">
-          <span className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-accent shadow-[0_0_20px_rgba(99,102,241,0.4)]">
-            <Mic className="w-5 h-5 text-white" aria-hidden />
+          <span className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-[var(--color-brand-600)] to-[var(--color-accent-500)] shadow-[var(--shadow-brand)]">
+            <Mic className="w-5 h-5 text-[var(--color-text-inverse)]" aria-hidden />
             <span
-              className={`absolute inset-0 rounded-xl bg-white/20 blur-md pointer-events-none ${
+              className={`pointer-events-none absolute inset-0 rounded-xl bg-[color-mix(in_srgb,var(--color-text-inverse)_25%,transparent)] blur-md ${
                 reduceMotion ? "opacity-0" : "animate-pulse"
               }`}
             />
           </span>
-          <span className="text-xl font-bold font-heading text-white tracking-tight">
-            HearMe<span className="text-brand-400">AI</span>
+          <span className="text-xl font-bold font-heading text-[var(--color-text-primary)] tracking-tight">
+            HearMe<span className="text-[var(--color-brand)]">AI</span>
           </span>
         </a>
 
@@ -73,7 +71,7 @@ export default function Navbar() {
               key={item.href}
               href={item.href}
               role="listitem"
-              className="text-sm font-medium text-slate-300 hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/60 rounded"
+              className="rounded text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--color-brand)_55%,transparent)]"
             >
               {item.label}
             </a>
@@ -83,19 +81,9 @@ export default function Navbar() {
         <div className="flex items-center gap-3">
           <a
             href="/auth"
-            className="hidden md:inline-block text-sm font-medium text-slate-300 hover:text-white px-3 py-2 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/60"
+            className="hidden rounded-md px-3 py-2 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--color-brand)_55%,transparent)] md:inline-block"
           >
             Sign In
-          </a>
-          <a
-            href="/app"
-            className="relative group overflow-hidden rounded-full bg-white px-5 py-2.5 focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-400/60"
-          >
-            <span className="absolute inset-0 bg-gradient-to-r from-brand-500 to-accent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-            <span className="relative inline-flex items-center gap-1.5 text-sm font-semibold text-slate-900 group-hover:text-white transition-colors duration-300">
-              <Play className="w-3.5 h-3.5 fill-current" aria-hidden />
-              Try Demo
-            </span>
           </a>
 
           <button
@@ -104,7 +92,7 @@ export default function Navbar() {
             aria-expanded={isMobileOpen}
             aria-controls="mobile-nav"
             onClick={() => setMobileOpen(true)}
-            className="lg:hidden grid place-items-center w-10 h-10 rounded-full glass border border-white/10 text-slate-200"
+            className="lg:hidden grid place-items-center w-10 h-10 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] shadow-sm"
           >
             <Menu className="w-5 h-5" aria-hidden />
           </button>
@@ -117,21 +105,21 @@ export default function Navbar() {
           role="dialog"
           aria-modal="true"
           aria-label="Site navigation"
-          className="fixed inset-0 z-50 lg:hidden"
+          className="fixed inset-0 z-[var(--z-modal)] lg:hidden"
         >
           <div
-            className="absolute inset-0 bg-slate-950/90 backdrop-blur-md"
+            className="absolute inset-0 bg-[var(--color-text-primary)]/30 backdrop-blur-sm"
             onClick={() => setMobileOpen(false)}
             aria-hidden
           />
-          <div className="relative ml-auto h-full w-full max-w-xs bg-slate-950 border-l border-white/10 p-6 flex flex-col">
+          <div className="relative ml-auto h-full w-full max-w-xs border-l border-[var(--color-border)] bg-[var(--color-surface)] p-6 flex flex-col shadow-xl">
             <div className="flex items-center justify-between">
-              <span className="text-base font-semibold text-slate-100">Menu</span>
+              <span className="text-base font-semibold text-[var(--color-text-primary)]">Menu</span>
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}
                 aria-label="Close menu"
-                className="grid place-items-center w-9 h-9 rounded-full glass border border-white/10 text-slate-200"
+                className="grid place-items-center w-9 h-9 rounded-full border border-[var(--color-border)] bg-[var(--color-surface-raised)] text-[var(--color-text-primary)]"
               >
                 <X className="w-4 h-4" aria-hidden />
               </button>
@@ -143,7 +131,7 @@ export default function Navbar() {
                   <a
                     href={item.href}
                     onClick={() => setMobileOpen(false)}
-                    className="block px-3 py-3 rounded-lg text-base text-slate-200 hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/60"
+                    className="block rounded-lg px-3 py-3 text-base text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--color-brand)_55%,transparent)]"
                   >
                     {item.label}
                   </a>
@@ -151,20 +139,13 @@ export default function Navbar() {
               ))}
             </ul>
 
-            <div className="mt-auto flex flex-col gap-3 pt-6 border-t border-white/5">
+            <div className="mt-auto flex flex-col gap-3 pt-6 border-t border-[var(--color-border)]">
               <a
                 href="/auth"
                 onClick={() => setMobileOpen(false)}
-                className="text-center px-4 py-3 rounded-full glass border border-white/10 text-slate-100"
+                className="rounded-full border border-[var(--color-border-strong)] bg-[var(--color-surface-raised)] px-4 py-3 text-center font-medium text-[var(--color-text-primary)]"
               >
                 Sign In
-              </a>
-              <a
-                href="/app"
-                onClick={() => setMobileOpen(false)}
-                className="text-center px-4 py-3 rounded-full bg-white text-slate-900 font-semibold"
-              >
-                Try Demo
               </a>
             </div>
           </div>

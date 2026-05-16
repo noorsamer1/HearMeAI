@@ -129,12 +129,54 @@ export class SessionWebSocket {
     this.send({ type: "audio_chunk", data: base64, mimeType });
   }
 
-  sendAudioEnd(lang?: string): void {
-    this.send({ type: "audio_end", lang: lang || "auto" });
+  sendAudioEnd(
+    lang?: string,
+    camera?: { label: string; confidence: number } | null,
+    moodLabel?: string | null
+  ): void {
+    this.send({
+      type: "audio_end",
+      lang: lang || "auto",
+      ...this._cameraFields(camera),
+      ...this._moodFields(moodLabel),
+    });
   }
 
-  sendText(text: string, requestTTS = false, lang = "en"): void {
-    this.send({ type: "user_text", text, requestTTS, lang });
+  sendText(
+    text: string,
+    requestTTS = false,
+    lang = "en",
+    camera?: { label: string; confidence: number } | null,
+    moodLabel?: string | null
+  ): void {
+    this.send({
+      type: "user_text",
+      text,
+      requestTTS,
+      lang,
+      ...this._cameraFields(camera),
+      ...this._moodFields(moodLabel),
+    });
+  }
+
+  /** Attach live camera sentiment when confidence is high enough for the backend. */
+  private _cameraFields(
+    camera?: { label: string; confidence: number } | null
+  ): Record<string, string | number> {
+    if (!camera || (camera.confidence ?? 0) < 0.62) {
+      return {};
+    }
+    return {
+      cameraLabel: camera.label,
+      cameraConfidence: camera.confidence,
+    };
+  }
+
+  /** Mood emoji chosen before send (neutral, angry, happy, etc.). */
+  private _moodFields(moodLabel?: string | null): Record<string, string> {
+    const label = moodLabel?.trim();
+    if (!label) return {};
+    return { moodLabel: label };
   }
 
   sendAction(

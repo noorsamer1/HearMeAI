@@ -1,4 +1,4 @@
-"""
+﻿"""
 WebSocket session: legacy single-client mode (no token) or authenticated multi-peer rooms.
 
 Query: ?token=<ws_ticket_jwt> for DB-backed sessions (see POST /sessions/{id}/ws-ticket).
@@ -20,9 +20,21 @@ from app.core.logging_config import get_logger
 from app.core.security import decode_token, parse_uuid_sub
 from app.crud import chat_session as session_crud
 from app.crud import message as message_crud
+from app.crud import user as user_crud
 from app.db.session import get_session_factory
 from app.realtime import room_manager
 from app.services.ai_context import classify_text, enhance_text
+from app.utils.text_cleanup import strip_stage_directions
+from app.services.emotion_aware_prompt import (
+    EMOTION_CONFIDENCE_THRESHOLD,
+    build_emotion_aware_system_prompt,
+    build_emotion_llm_messages,
+    build_peer_sentiment_fields,
+    emotion_is_active,
+    normalize_emotion_label,
+    resolve_user_emotion,
+    sanitize_emotion_reply,
+)
 from app.services.context_manager import context_registry
 from app.services.language_detector import compute_readability_score, detect_language, normalize_text
 from app.services.openrouter_client import get_llm_client
@@ -35,6 +47,7 @@ router = APIRouter()
 logger = get_logger(__name__)
 settings = get_settings()
 SIGN_POSES = {"neutral", "wave", "thank-you", "yes", "no", "please", "help", "question"}
+CHUNK_THRESHOLD_BYTES = 150_000  # ~10 s of 16 kHz audio at 128 kbps
 TOKEN_RE = re.compile(r"[\w']+", re.UNICODE)
 BACKEND_ROOT = Path(__file__).resolve().parents[4]
 ARTIFACTS_DIR = BACKEND_ROOT / "artifacts" / "sign"
@@ -81,8 +94,70 @@ def _load_sign_artifacts() -> tuple[dict[str, list[list]], dict]:
     return motion_vocab, transition_stats
 
 
+
+# Direct phrase-to-pose mapping for common greetings and phrases.
+# This is the first-pass lookup before artifacts or LLM.
+_PHRASE_POSE_MAP: list[tuple[list[str], list[dict]]] = [
+    (
+        ["hello", "hi", "hey", "مرحبا", "اهلا", "أهلا", "السلام عليكم"],
+        [{"pose": "wave", "durationMs": 1000}, {"pose": "neutral", "durationMs": 600}],
+    ),
+    (
+        ["thank you", "thanks", "شكرا", "شكرًا", "شكراً"],
+        [{"pose": "thank-you", "durationMs": 1200}, {"pose": "neutral", "durationMs": 600}],
+    ),
+    (
+        ["how are you", "how r you", "كيف حالك", "كيف حالكم", "كيف الحال"],
+        [
+            {"pose": "wave", "durationMs": 700},
+            {"pose": "question", "durationMs": 1100},
+            {"pose": "neutral", "durationMs": 600},
+        ],
+    ),
+    (
+        ["help", "ساعدني", "مساعدة"],
+        [{"pose": "help", "durationMs": 1200}, {"pose": "neutral", "durationMs": 600}],
+    ),
+    (
+        ["please", "من فضلك", "لو سمحت"],
+        [{"pose": "please", "durationMs": 1100}, {"pose": "neutral", "durationMs": 600}],
+    ),
+    (
+        ["yes", "نعم", "ايوه", "أيوه"],
+        [{"pose": "yes", "durationMs": 1000}, {"pose": "neutral", "durationMs": 600}],
+    ),
+    (
+        ["no", "لا"],
+        [{"pose": "no", "durationMs": 1000}, {"pose": "neutral", "durationMs": 600}],
+    ),
+    (
+        ["good morning", "صباح الخير"],
+        [{"pose": "wave", "durationMs": 900}, {"pose": "neutral", "durationMs": 600}],
+    ),
+    (
+        ["good evening", "مساء الخير"],
+        [{"pose": "wave", "durationMs": 900}, {"pose": "neutral", "durationMs": 600}],
+    ),
+    (
+        ["goodbye", "bye", "see you", "مع السلامة"],
+        [{"pose": "wave", "durationMs": 1100}, {"pose": "neutral", "durationMs": 600}],
+    ),
+]
+
+
+def _phrase_sign_plan(text: str) -> dict | None:
+    """Fast direct phrase lookup — no artifacts, no LLM needed."""
+    normalized = (text or "").strip().lower()
+    for phrases, sequence in _PHRASE_POSE_MAP:
+        for phrase in phrases:
+            if phrase in normalized:
+                return {"phraseKey": phrase.replace(" ", "-"), "sequence": sequence}
+    return None
+
+
 def _artifact_motion_plan(text: str, lang: str) -> dict | None:
-    """Build sign motion plan from local training artifacts."""
+    """Build sign motion plan from local training artifacts.
+    Returns None if the plan would contain only neutral poses (lets LLM take over)."""
     clean_text = (text or "").strip().lower()
     if not clean_text:
         return None
@@ -115,37 +190,170 @@ def _artifact_motion_plan(text: str, lang: str) -> dict | None:
 
     if not plan_steps:
         return None
+
+    # If every step is the neutral fallback pose the plan carries no information;
+    # return None so the LLM can generate a more meaningful plan.
+    has_meaningful = any(s["pose"] != "neutral" for s in plan_steps)
+    if not has_meaningful:
+        return None
+
     if plan_steps[-1]["pose"] != "neutral":
         plan_steps.append({"pose": "neutral", "durationMs": 700})
 
     return {"phraseKey": f"artifact-{lang[:2] or 'ar'}", "sequence": plan_steps}
 
 
-async def _stream_llm(llm, messages: list, message_id: str, send_fn) -> str:
+async def _emit_emotion_tuned_if_active(
+    send_fn,
+    *,
+    ai_message_id: str,
+    emotion_label: str | None,
+    emotion_conf: float | None,
+) -> None:
+    """Tell the client the assistant reply tone was shaped by fused sentiment."""
+    if not emotion_label or (emotion_conf or 0) < EMOTION_CONFIDENCE_THRESHOLD:
+        return
+    label = normalize_emotion_label(emotion_label) or emotion_label
+    await send_fn(
+        {
+            "type": "emotion_tuned",
+            "messageId": ai_message_id,
+            "label": label,
+            "confidence": float(emotion_conf or 0),
+        }
+    )
+
+
+def _camera_sentiment_from_event(event: dict) -> tuple[str | None, float | None]:
+    """Optional live camera sentiment attached by the client."""
+    label = event.get("cameraLabel") or event.get("camera_label")
+    raw_conf = event.get("cameraConfidence")
+    if raw_conf is None:
+        raw_conf = event.get("camera_confidence")
+    if not label:
+        return None, None
+    try:
+        conf = float(raw_conf) if raw_conf is not None else None
+    except (TypeError, ValueError):
+        conf = None
+    return str(label).strip() or None, conf
+
+
+def _manual_mood_from_event(event: dict) -> str | None:
+    """Mood emoji picked by the sender before send (neutral, angry, happy, etc.)."""
+    raw = event.get("moodLabel") or event.get("mood_label")
+    if not raw:
+        return None
+    label = str(raw).strip()
+    return label or None
+
+
+def _mood_inputs_from_event(event: dict) -> tuple[str | None, str | None, float | None]:
+    """Manual picker overrides camera; returns (manual, camera_label, camera_conf)."""
+    manual = _manual_mood_from_event(event)
+    if manual:
+        return manual, None, None
+    cam_label, cam_conf = _camera_sentiment_from_event(event)
+    return None, cam_label, cam_conf
+
+
+async def _stream_llm(
+    llm,
+    messages: list,
+    message_id: str,
+    send_fn,
+    *,
+    system_override: str | None = None,
+    temperature: float | None = None,
+) -> str:
     full_text = ""
     try:
         async def _do_stream():
             nonlocal full_text
-            async for token in llm.stream_chat(messages):
+            async for token in llm.stream_chat(
+                messages,
+                system_override=system_override,
+                temperature=temperature,
+            ):
                 full_text += token
-                await send_fn({"type": "ai_partial", "text": full_text, "messageId": message_id})
+                await send_fn(
+                    {
+                        "type": "ai_partial",
+                        "text": strip_stage_directions(full_text),
+                        "messageId": message_id,
+                    }
+                )
 
         await asyncio.wait_for(_do_stream(), timeout=60.0)
-        await send_fn({"type": "ai_final", "text": full_text.strip(), "messageId": message_id})
+        cleaned = strip_stage_directions(full_text.strip())
+        await send_fn({"type": "ai_final", "text": cleaned, "messageId": message_id})
+        return cleaned
     except asyncio.TimeoutError:
         logger.error("LLM stream timed out", message_id=message_id)
         await send_fn({"type": "error", "message": "AI response timed out", "code": "llm_timeout"})
-        await send_fn({"type": "ai_final", "text": full_text.strip(), "messageId": message_id, "error": True})
+        cleaned = strip_stage_directions(full_text.strip())
+        await send_fn(
+            {"type": "ai_final", "text": cleaned, "messageId": message_id, "error": True}
+        )
+        return cleaned
     except Exception as exc:
         logger.error("LLM stream error", error=str(exc))
         await send_fn({"type": "error", "message": "AI response failed", "code": "llm_error"})
-        await send_fn({"type": "ai_final", "text": full_text.strip(), "messageId": message_id, "error": True})
+        cleaned = strip_stage_directions(full_text.strip())
+        await send_fn(
+            {"type": "ai_final", "text": cleaned, "messageId": message_id, "error": True}
+        )
+        return cleaned
 
-    return full_text.strip()
+
+async def _generate_mood_aware_reply(
+    llm,
+    ctx,
+    user_text: str,
+    lang: str,
+    ai_id: str,
+    send_fn,
+    *,
+    emotion_label: str | None,
+    emotion_conf: float | None,
+) -> str:
+    """Stream assistant reply; enforce mood acknowledgment when mood is confident."""
+    system_prompt = build_emotion_aware_system_prompt(emotion_label, emotion_conf)
+    if emotion_is_active(emotion_label, emotion_conf):
+        messages = build_emotion_llm_messages(user_text)
+        raw = await _stream_llm(
+            llm,
+            messages,
+            ai_id,
+            send_fn,
+            system_override=system_prompt,
+            temperature=0.35,
+        )
+        final = sanitize_emotion_reply(raw, emotion_label or "", lang)
+        if final != raw:
+            await send_fn({"type": "ai_final", "text": final, "messageId": ai_id})
+        return final
+
+    return await _stream_llm(
+        llm,
+        ctx.get_messages(),
+        ai_id,
+        send_fn,
+        system_override=system_prompt,
+    )
 
 
 async def _build_sign_motion_plan(llm, text: str, lang: str) -> dict | None:
-    """Use LLM to generate signer pose timeline for current text."""
+    """Build a signer pose timeline for the given text.
+
+    Priority: direct phrase map → artifact vocab → LLM fallback.
+    """
+    # 1. Fast phrase-to-pose lookup (e.g. "hello" → wave)
+    phrase_plan = _phrase_sign_plan(text)
+    if phrase_plan:
+        return phrase_plan
+
+    # 2. Artifact vocab (only used when it produces non-neutral poses)
     artifact_plan = _artifact_motion_plan(text, lang)
     if artifact_plan:
         return artifact_plan
@@ -219,6 +427,67 @@ async def _build_sign_motion_plan(llm, text: str, lang: str) -> dict | None:
     return {"phraseKey": phrase_key, "sequence": sequence}
 
 
+async def _notify_peers_of_join(
+    session_id: str,
+    joining_user_key: str,
+    display_name: str,
+) -> None:
+    """When a user joins a room, notify any other session participants who are online."""
+    try:
+        factory = get_session_factory()
+        async with factory() as db:
+            participant_ids = await session_crud.list_participant_user_ids(db, UUID(session_id))
+            await db.commit()
+
+        for pid in participant_ids:
+            pid_str = str(pid)
+            if pid_str == joining_user_key:
+                continue
+            if room_manager.is_user_online_anywhere(pid_str):
+                await room_manager.send_to_user_globally(
+                    pid_str,
+                    {
+                        "type": "peer_joined",
+                        "senderName": display_name,
+                        "sessionId": session_id,
+                        "message": f"{display_name} is online and wants to chat.",
+                    },
+                )
+                logger.info(
+                    "peer_join_notified",
+                    session_id=session_id,
+                    joining=joining_user_key,
+                    notified=pid_str,
+                )
+    except Exception as exc:
+        logger.warning("peer_join_notify_failed", session_id=session_id, error=str(exc))
+
+
+async def _get_deaf_peer_keys(session_id: str, exclude_user_id: "UUID | None") -> list[str]:
+    """Return user_keys of online peers in the session who are deaf or 'both'."""
+    deaf_keys: list[str] = []
+    try:
+        factory = get_session_factory()
+        async with factory() as db:
+            participant_ids = await session_crud.list_participant_user_ids(db, UUID(session_id))
+            for pid in participant_ids:
+                if pid == exclude_user_id:
+                    continue
+                pid_str = str(pid)
+                if not room_manager.is_user_online(pid_str):
+                    continue
+                # Only notify if they're currently in this session's room
+                if room_manager.get_user_active_room(pid_str) != session_id:
+                    continue
+                user_obj = await user_crud.get_user_by_id(db, pid)
+                if user_obj and getattr(user_obj, "user_type", "") in ("deaf", "both"):
+                    deaf_keys.append(pid_str)
+            await db.commit()
+    except Exception as exc:
+        logger.warning("deaf_peer_lookup_failed", session_id=session_id, error=str(exc))
+    return deaf_keys
+
+
 @router.websocket("/ws/session/{session_id}")
 async def websocket_session(
     websocket: WebSocket,
@@ -227,7 +496,8 @@ async def websocket_session(
 ):
     room_mode = False
     user_uuid: UUID | None = None
-    user_key = "anon"
+    user_key = str(uuid4())  # unique key for anonymous users
+    user_display_name: str = "Peer"
 
     if token:
         try:
@@ -242,6 +512,9 @@ async def websocket_session(
             factory = get_session_factory()
             async with factory() as db:
                 ok = await session_crud.is_participant(db, UUID(session_id), user_uuid)
+                user_obj = await user_crud.get_user_by_id(db, user_uuid)
+                if user_obj:
+                    user_display_name = user_obj.display_name
                 await db.commit()
             if not ok:
                 await websocket.close(code=4403)
@@ -253,6 +526,11 @@ async def websocket_session(
             return
 
     await room_manager.connect(session_id, user_key, websocket)
+    await websocket.send_json({"type": "session_joined", "sessionId": session_id, "userId": user_key})
+
+    # Notify other session participants who are online that this user has joined.
+    if room_mode and user_uuid:
+        await _notify_peers_of_join(session_id, str(user_uuid), user_display_name)
 
     stt = get_stt_service()
     tts = get_tts_service()
@@ -261,6 +539,9 @@ async def websocket_session(
 
     audio_buffer = bytearray()
     audio_mime = "audio/webm"
+    chunk_byte_count = 0
+    accept_audio_chunks = True
+    listening_status_sent = False
 
     async def send(data: dict):
         try:
@@ -270,6 +551,15 @@ async def websocket_session(
 
     async def set_status(state: str):
         await send({"type": "status", "state": state})
+
+    def reopen_audio_capture() -> None:
+        nonlocal accept_audio_chunks, listening_status_sent
+        accept_audio_chunks = True
+        listening_status_sent = False
+
+    async def finish_audio_capture(status: str = "idle") -> None:
+        await set_status(status)
+        reopen_audio_capture()
 
     async def emit_sign_motion_plan(text: str, lang: str) -> None:
         plan = await _build_sign_motion_plan(llm, text, lang)
@@ -282,6 +572,10 @@ async def websocket_session(
     async def load_room_ai_flag() -> bool:
         if not room_mode:
             return True
+        # A human peer is present → let them handle the conversation; AI stays silent
+        peers = room_manager.local_peer_keys(session_id, exclude_user_key=user_key)
+        if peers:
+            return False
         factory = get_session_factory()
         async with factory() as db:
             s = await session_crud.get_session(db, UUID(session_id))
@@ -294,6 +588,7 @@ async def websocket_session(
         *,
         confidence: float,
         lang: str,
+        peer_sentiment: dict[str, str | float] | None = None,
     ) -> None:
         if not room_mode or user_uuid is None:
             return
@@ -310,23 +605,33 @@ async def websocket_session(
             )
             sign = await best_sign_suggestion(db, text, locale=lang[:2] if lang else "en")
             await db.commit()
+        fanout_payload: dict = {
+            "type": "message",
+            "kind": "transcript",
+            "text": text,
+            "messageId": str(msg_uuid),
+            "senderId": user_key,
+            "senderName": user_display_name,
+            "lang": lang,
+            "confidence": confidence,
+        }
+        if peer_sentiment:
+            fanout_payload.update(peer_sentiment)
         await broadcast_fanout(
             session_id,
-            {
-                "type": "message",
-                "kind": "transcript",
-                "text": text,
-                "messageId": str(msg_uuid),
-                "senderId": user_key,
-                "lang": lang,
-                "confidence": confidence,
-            },
+            fanout_payload,
             exclude_user_key=user_key,
         )
         if sign:
             await broadcast_fanout(session_id, {"type": "sign_suggestion", **sign}, exclude_user_key=None)
 
-    async def persist_and_fanout_user_text(text: str, msg_uuid: UUID, lang: str) -> None:
+    async def persist_and_fanout_user_text(
+        text: str,
+        msg_uuid: UUID,
+        lang: str,
+        *,
+        peer_sentiment: dict[str, str | float] | None = None,
+    ) -> None:
         if not room_mode or user_uuid is None:
             return
         factory = get_session_factory()
@@ -341,16 +646,20 @@ async def websocket_session(
             )
             sign = await best_sign_suggestion(db, text, locale=lang[:2] if lang else "en")
             await db.commit()
+        fanout_payload: dict = {
+            "type": "message",
+            "kind": "user_text",
+            "text": text,
+            "messageId": str(msg_uuid),
+            "senderId": user_key,
+            "senderName": user_display_name,
+            "lang": lang,
+        }
+        if peer_sentiment:
+            fanout_payload.update(peer_sentiment)
         await broadcast_fanout(
             session_id,
-            {
-                "type": "message",
-                "kind": "user_text",
-                "text": text,
-                "messageId": str(msg_uuid),
-                "senderId": user_key,
-                "lang": lang,
-            },
+            fanout_payload,
             exclude_user_key=user_key,
         )
         if sign:
@@ -395,13 +704,19 @@ async def websocket_session(
             )
             await db.commit()
 
-    async def handle_audio_end(lang_hint: str | None):
+    async def handle_audio_end(
+        lang_hint: str | None,
+        *,
+        camera_label: str | None = None,
+        camera_confidence: float | None = None,
+        manual_mood_label: str | None = None,
+    ):
         if not audio_buffer:
+            await finish_audio_capture("idle")
             return
 
         audio_data = bytes(audio_buffer)
         audio_buffer.clear()
-        await set_status("processing")
 
         try:
             result = await stt.transcribe(
@@ -411,13 +726,21 @@ async def websocket_session(
             )
         except Exception as exc:
             logger.error("STT failed", session_id=session_id, error=str(exc))
-            await send({"type": "error", "message": "Transcription failed", "code": "stt_error"})
-            await set_status("idle")
+            detail = str(exc).strip()[:240] or "unknown_error"
+            await send(
+                {
+                    "type": "error",
+                    "message": "Transcription failed",
+                    "code": "stt_error",
+                    "detail": detail,
+                }
+            )
+            await finish_audio_capture("idle")
             return
 
         text = normalize_text(result.text)
         if not text:
-            await set_status("idle")
+            await finish_audio_capture("idle")
             return
 
         detected_lang = result.detected_language
@@ -426,44 +749,100 @@ async def websocket_session(
         ctx.set_language(detected_lang)
 
         msg_uuid = uuid4()
+        classification: dict = {}
+        if settings.openrouter_api_key:
+            classification = await classify_text(text)
+
+        fuse_label = manual_mood_label or camera_label
+        fuse_conf = 0.95 if manual_mood_label else camera_confidence
+        peer_sentiment = build_peer_sentiment_fields(
+            classification,
+            camera_label,
+            camera_confidence,
+            manual_mood_label=manual_mood_label,
+        )
+        emotion_label, emotion_conf = resolve_user_emotion(
+            classification, fuse_label, fuse_conf
+        )
+
         await persist_and_fanout_transcript(
             text,
             msg_uuid,
             confidence=result.confidence,
             lang=detected_lang,
+            peer_sentiment=peer_sentiment or None,
         )
 
-        await send({
+        transcript_final_payload: dict = {
             "type": "transcript_final",
             "text": text,
             "confidence": result.confidence,
             "lang": detected_lang,
             "messageId": str(msg_uuid),
-        })
+        }
+        if peer_sentiment:
+            transcript_final_payload.update(peer_sentiment)
+        await send(transcript_final_payload)
         await emit_sign_motion_plan(text, detected_lang)
 
-        ai_assist = await load_room_ai_flag()
-        classification: dict = {}
+        if settings.openrouter_api_key or emotion_label:
+            sentiment_payload: dict = {
+                "type": "sentiment",
+                "label": emotion_label or classification.get("emotion", "neutral"),
+                "intent": classification.get("intent", "other"),
+                "confidence": emotion_conf
+                if emotion_conf is not None
+                else classification.get("confidence", 0.0),
+                "messageId": str(msg_uuid),
+            }
+            if peer_sentiment.get("sentimentSource"):
+                sentiment_payload["sentimentSource"] = peer_sentiment["sentimentSource"]
+            await send(sentiment_payload)
+
+        # Who else is connected in this room right now?
+        peer_keys_audio = room_manager.local_peer_keys(session_id, exclude_user_key=user_key)
+
+        # ── Auto-TTS: push the transcript text as speech to all connected peers ──
+        if peer_keys_audio and room_mode:
+            try:
+                audio_b64, duration = await tts.synthesize(text=text, language=detected_lang)
+                voice_name = settings.tts_voice_ar if detected_lang[:2].lower() == "ar" else settings.tts_voice_en
+                tts_peer_payload = {
+                    "type": "tts_ready",
+                    "audio": audio_b64,
+                    "messageId": str(msg_uuid),
+                    "duration": round(duration, 2),
+                    "voice": voice_name,
+                }
+                for pk in peer_keys_audio:
+                    await room_manager.send_to(session_id, pk, tts_peer_payload)
+            except Exception as exc:
+                logger.warning("peer transcript auto-TTS failed", session_id=session_id, error=str(exc))
+
+        ai_assist = await load_room_ai_flag()  # False when peers are present
         enhancement = ""
         persisted_assistant_row = False
-
-        if settings.openrouter_api_key:
-            classification = await classify_text(text)
-            await send(
-                {
-                    "type": "sentiment",
-                    "label": classification.get("emotion", "neutral"),
-                    "intent": classification.get("intent", "other"),
-                    "confidence": classification.get("confidence", 0.0),
-                    "messageId": str(msg_uuid),
-                }
-            )
 
         ctx.add("user", text)
 
         if ai_assist:
             ai_id = str(uuid4())
-            full_response = await _stream_llm(llm, ctx.get_messages(), ai_id, send)
+            await _emit_emotion_tuned_if_active(
+                send,
+                ai_message_id=ai_id,
+                emotion_label=emotion_label,
+                emotion_conf=emotion_conf,
+            )
+            full_response = await _generate_mood_aware_reply(
+                llm,
+                ctx,
+                text,
+                detected_lang,
+                ai_id,
+                send,
+                emotion_label=emotion_label,
+                emotion_conf=emotion_conf,
+            )
             if full_response:
                 readability = compute_readability_score(full_response)
                 await send(
@@ -473,6 +852,20 @@ async def websocket_session(
                         "readabilityScore": readability,
                     }
                 )
+                try:
+                    # Peers only — sender already received ai_partial/ai_final stream.
+                    await broadcast_fanout(
+                        session_id,
+                        {
+                            "type": "ai_response",
+                            "text": full_response.strip(),
+                            "session_id": session_id,
+                            "messageId": ai_id,
+                        },
+                        exclude_user_key=user_key,
+                    )
+                except Exception as exc:
+                    logger.error("ai_response broadcast failed", session_id=session_id, error=str(exc))
                 ctx.add("assistant", full_response)
                 enhancement = full_response
                 await persist_ai_assistant_message(full_response, UUID(ai_id))
@@ -490,7 +883,8 @@ async def websocket_session(
                     )
                     await persist_ai_assistant_message(enhancement, uuid4())
                     persisted_assistant_row = True
-        elif settings.openrouter_api_key and room_mode:
+        elif settings.openrouter_api_key and room_mode and not peer_keys_audio:
+            # Enhancement only in solo sessions — never when peers are present.
             enhancement = await enhance_text(text, classification, locale=detected_lang[:2])
             if enhancement:
                 await send(
@@ -512,9 +906,17 @@ async def websocket_session(
                 model_name=settings.enhancer_model_name if meta_enhancement else settings.classifier_model,
             )
 
-        await set_status("idle")
+        await finish_audio_capture("idle")
 
-    async def handle_user_text(text: str, request_tts: bool, lang: str):
+    async def handle_user_text(
+        text: str,
+        request_tts: bool,
+        lang: str,
+        *,
+        camera_label: str | None = None,
+        camera_confidence: float | None = None,
+        manual_mood_label: str | None = None,
+    ):
         text = normalize_text(text)
         if not text:
             return
@@ -524,28 +926,128 @@ async def websocket_session(
         ctx.set_language(lang)
 
         msg_uuid = uuid4()
-        await persist_and_fanout_user_text(text, msg_uuid, lang)
-        await emit_sign_motion_plan(text, lang)
-        ctx.add("user", text)
-
-        ai_assist = await load_room_ai_flag()
         classification: dict = {}
         if settings.openrouter_api_key:
             classification = await classify_text(text)
-            await send(
-                {
-                    "type": "sentiment",
-                    "label": classification.get("emotion", "neutral"),
-                    "intent": classification.get("intent", "other"),
-                    "confidence": classification.get("confidence", 0.0),
+
+        fuse_label = manual_mood_label or camera_label
+        fuse_conf = 0.95 if manual_mood_label else camera_confidence
+        peer_sentiment = build_peer_sentiment_fields(
+            classification,
+            camera_label,
+            camera_confidence,
+            manual_mood_label=manual_mood_label,
+        )
+        emotion_label, emotion_conf = resolve_user_emotion(
+            classification, fuse_label, fuse_conf
+        )
+
+        await persist_and_fanout_user_text(
+            text, msg_uuid, lang, peer_sentiment=peer_sentiment or None
+        )
+        await emit_sign_motion_plan(text, lang)
+        ctx.add("user", text)
+
+        if settings.openrouter_api_key or emotion_label:
+            sentiment_payload: dict = {
+                "type": "sentiment",
+                "label": emotion_label or classification.get("emotion", "neutral"),
+                "intent": classification.get("intent", "other"),
+                "confidence": emotion_conf
+                if emotion_conf is not None
+                else classification.get("confidence", 0.0),
+                "messageId": str(msg_uuid),
+            }
+            if peer_sentiment.get("sentimentSource"):
+                sentiment_payload["sentimentSource"] = peer_sentiment["sentimentSource"]
+            await send(sentiment_payload)
+
+        # Who else is currently connected in this room?
+        peer_keys = room_manager.local_peer_keys(session_id, exclude_user_key=user_key)
+
+        # ── AI interpretation for deaf/both peers ────────────────────────────────
+        # When deaf/both users receive a typed message they can't hear TTS for it.
+        # Generate a brief AI interpretation note and send it directly to them.
+        if peer_keys and room_mode and settings.openrouter_api_key and user_uuid:
+            deaf_peer_keys = await _get_deaf_peer_keys(session_id, user_uuid)
+            if deaf_peer_keys:
+                interp_messages = [
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a sign-language communication assistant. "
+                            "Summarize the user's message in ONE short sentence "
+                            "(max 15 words) that a deaf person can quickly read. "
+                            "Do NOT add pleasantries or extra context. Return only the sentence."
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": f"[{user_display_name}] says: {text}",
+                    },
+                ]
+                try:
+                    interp_text = await llm.complete_with_model(
+                        model=settings.classifier_model,
+                        messages=interp_messages,
+                        temperature=0.3,
+                        max_tokens=60,
+                        json_mode=False,
+                    )
+                    interp_text = (interp_text or "").strip()
+                    if interp_text:
+                        interp_payload = {
+                            "type": "peer_ai_assist",
+                            "text": interp_text,
+                            "messageId": str(uuid4()),
+                            "senderName": user_display_name,
+                        }
+                        for dk in deaf_peer_keys:
+                            await room_manager.send_to(session_id, dk, interp_payload)
+                        # NOTE: sign_motion_plan for this message was already broadcast to all
+                        # participants (including deaf peers) by emit_sign_motion_plan() above.
+                        # Sending a second plan here would race-override the first one.
+                except Exception as exc:
+                    logger.debug("deaf_peer_interp_failed", error=str(exc))
+
+        # ── Auto-TTS for peers: mute/hearing users receive the sender's text as speech ──
+        if peer_keys and room_mode:
+            try:
+                audio_b64, duration = await tts.synthesize(text=text, language=lang)
+                voice_name = settings.tts_voice_ar if lang[:2].lower() == "ar" else settings.tts_voice_en
+                tts_peer_payload = {
+                    "type": "tts_ready",
+                    "audio": audio_b64,
                     "messageId": str(msg_uuid),
+                    "duration": round(duration, 2),
+                    "voice": voice_name,
                 }
-            )
+                for pk in peer_keys:
+                    await room_manager.send_to(session_id, pk, tts_peer_payload)
+            except Exception as exc:
+                logger.warning("peer auto-TTS failed", session_id=session_id, error=str(exc))
+
+        ai_assist = await load_room_ai_flag()  # False when peers are present
 
         if ai_assist:
             await set_status("processing")
             ai_id = str(uuid4())
-            full_response = await _stream_llm(llm, ctx.get_messages(), ai_id, send)
+            await _emit_emotion_tuned_if_active(
+                send,
+                ai_message_id=ai_id,
+                emotion_label=emotion_label,
+                emotion_conf=emotion_conf,
+            )
+            full_response = await _generate_mood_aware_reply(
+                llm,
+                ctx,
+                text,
+                lang,
+                ai_id,
+                send,
+                emotion_label=emotion_label,
+                emotion_conf=emotion_conf,
+            )
             if full_response:
                 ctx.add("assistant", full_response)
                 await persist_ai_assistant_message(full_response, UUID(ai_id))
@@ -575,7 +1077,8 @@ async def websocket_session(
                         logger.error("TTS failed", session_id=session_id, error=str(exc))
                         await send({"type": "error", "message": "Speech synthesis failed", "code": "tts_error"})
             await set_status("idle")
-        elif room_mode and settings.openrouter_api_key:
+        elif room_mode and settings.openrouter_api_key and not peer_keys:
+            # Enhancement only when AI assist is off in a SOLO session — never when peers are present.
             enhancement = await enhance_text(text, classification, locale=lang[:2])
             if enhancement:
                 await send(
@@ -641,14 +1144,14 @@ async def websocket_session(
                 await send(
                     {
                         "type": "ai_partial",
-                        "text": full_result,
+                        "text": strip_stage_directions(full_result),
                         "messageId": result_id,
                         "action": action,
                         "sourceMessageId": source_msg_id,
                     }
                 )
 
-            result_text = full_result.strip()
+            result_text = strip_stage_directions(full_result.strip())
             await send(
                 {
                     "type": "ai_final",
@@ -673,17 +1176,68 @@ async def websocket_session(
             event_type = event.get("type", "")
 
             if event_type == "audio_chunk":
+                if not accept_audio_chunks:
+                    continue
                 raw = event.get("data", "")
                 if raw:
                     chunk_bytes = base64.b64decode(raw)
                     audio_buffer.extend(chunk_bytes)
+                    chunk_byte_count += len(chunk_bytes)
                 if event.get("mimeType"):
                     audio_mime = event["mimeType"]
-                await set_status("listening")
+                if not listening_status_sent:
+                    listening_status_sent = True
+                    await set_status("listening")
+                if chunk_byte_count >= CHUNK_THRESHOLD_BYTES:
+                    lang_hint_interim = event.get("lang", "auto")
+                    buffer_snapshot = bytes(audio_buffer)
+                    chunk_byte_count = 0
+                    try:
+                        interim_result = await stt.transcribe_chunk(
+                            buffer_snapshot, language=lang_hint_interim, mime_type=audio_mime
+                        )
+                        if interim_result and interim_result.text:
+                            await broadcast_fanout(
+                                session_id,
+                                {
+                                    "type": "transcript_interim",
+                                    "text": interim_result.text,
+                                    "confidence": interim_result.confidence,
+                                    "lang": interim_result.detected_language,
+                                },
+                                exclude_user_key=None,
+                            )
+                    except Exception as exc:
+                        logger.warning("Interim STT failed", session_id=session_id, error=str(exc))
 
             elif event_type == "audio_end":
                 lang = event.get("lang", "auto")
-                await handle_audio_end(lang)
+                chunk_byte_count = 0
+                accept_audio_chunks = False
+                listening_status_sent = False
+                await set_status("processing")
+                manual_mood, cam_label, cam_conf = _mood_inputs_from_event(event)
+                try:
+                    await handle_audio_end(
+                        lang,
+                        camera_label=cam_label,
+                        camera_confidence=cam_conf,
+                        manual_mood_label=manual_mood,
+                    )
+                except Exception as exc:
+                    logger.error(
+                        "audio_end failed",
+                        session_id=session_id,
+                        error=str(exc),
+                    )
+                    await send(
+                        {
+                            "type": "error",
+                            "message": "Could not process recording",
+                            "code": "audio_error",
+                        }
+                    )
+                    await finish_audio_capture("idle")
 
             elif event_type == "user_text":
                 text = event.get("text", "").strip()
@@ -691,7 +1245,15 @@ async def websocket_session(
                     continue
                 request_tts = bool(event.get("requestTTS", False))
                 u_lang = event.get("lang", "en")
-                await handle_user_text(text, request_tts, u_lang)
+                manual_mood, cam_label, cam_conf = _mood_inputs_from_event(event)
+                await handle_user_text(
+                    text,
+                    request_tts,
+                    u_lang,
+                    camera_label=cam_label,
+                    camera_confidence=cam_conf,
+                    manual_mood_label=manual_mood,
+                )
 
             elif event_type == "action":
                 action = event.get("action", "")
@@ -708,6 +1270,7 @@ async def websocket_session(
                 logger.warning("Unknown WS event", event_type=event_type, session_id=session_id)
 
     except WebSocketDisconnect:
+        await _notify_peer_left(session_id, user_key, user_display_name)
         room_manager.disconnect(session_id, user_key)
         context_registry.delete(session_id)
     except Exception as exc:
@@ -716,5 +1279,58 @@ async def websocket_session(
             await send({"type": "error", "message": "Session error", "code": "session_error"})
         except Exception:
             pass
+        await _notify_peer_left(session_id, user_key, user_display_name)
         room_manager.disconnect(session_id, user_key)
         context_registry.delete(session_id)
+
+
+@router.websocket("/ws/notify")
+async def global_notify_socket(
+    websocket: WebSocket,
+    token: str = Query(default=""),
+) -> None:
+    """Lightweight persistent WebSocket for global notifications (lobby / dashboard).
+
+    Authenticated users connect here so they can receive peer_joined events even
+    when they're not inside a chat session room.  The socket only receives — it
+    doesn't need to send anything except a keep-alive pong.
+    """
+    # Validate token
+    user_key: str | None = None
+    try:
+        payload = decode_token(token)
+        user_key = parse_uuid_sub(payload)
+    except (JWTError, Exception):
+        await websocket.close(code=4001)
+        return
+
+    await room_manager.connect_notify(user_key, websocket)
+    try:
+        while True:
+            # Keep socket alive; only accept pings
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        pass
+    except Exception as exc:
+        logger.warning("notify_ws_error", user_key=user_key, error=str(exc))
+    finally:
+        room_manager.disconnect_notify(user_key)
+
+
+async def _notify_peer_left(session_id: str, leaving_key: str, display_name: str) -> None:
+    """Broadcast a peer_left event to all remaining peers before the connection is dropped."""
+    try:
+        remaining = room_manager.local_peer_keys(session_id, exclude_user_key=leaving_key)
+        if not remaining:
+            return
+        payload = {
+            "type": "peer_left",
+            "senderName": display_name,
+            "message": f"{display_name} has left the conversation.",
+        }
+        for pk in remaining:
+            await room_manager.send_to(session_id, pk, payload)
+    except Exception as exc:
+        logger.warning("peer_left broadcast failed", session_id=session_id, error=str(exc))

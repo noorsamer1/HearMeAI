@@ -39,10 +39,18 @@ export default function MicrophoneButton() {
           exit={{ opacity: 0, y: -10 }}
           className="mb-4 text-sm font-medium font-sans tracking-wide uppercase"
         >
-          {micState === "idle" && <span className="text-slate-400">Ready</span>}
-          {micState === "listening" && <span className="text-neon-blue">Listening...</span>}
-          {micState === "processing" && <span className="text-neon-yellow">Understanding...</span>}
-          {micState === "speaking" && <span className="text-neon-green">Synthesizing...</span>}
+          {micState === "idle" && (
+            <span className="text-[var(--color-text-muted)]">Ready</span>
+          )}
+          {micState === "listening" && (
+            <span className="text-[var(--color-brand)]">Listening...</span>
+          )}
+          {micState === "processing" && (
+            <span className="text-[var(--color-warning)]">Understanding...</span>
+          )}
+          {micState === "speaking" && (
+            <span className="text-[var(--color-success)]">Synthesizing...</span>
+          )}
         </motion.div>
       </AnimatePresence>
 
@@ -54,10 +62,12 @@ export default function MicrophoneButton() {
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.8 }}
-              className={`absolute w-24 h-24 rounded-full blur-xl mix-blend-screen transition-colors duration-500 ${
-                micState === "listening" ? "bg-neon-blue/40" :
-                micState === "processing" ? "bg-neon-yellow/40" :
-                "bg-neon-green/40"
+              className={`absolute h-24 w-24 rounded-full blur-xl mix-blend-screen transition-colors duration-500 ${
+                micState === "listening"
+                  ? "bg-[var(--color-brand-glow)]"
+                  : micState === "processing"
+                    ? "bg-[color-mix(in_srgb,var(--color-warning)_45%,transparent)]"
+                    : "bg-[var(--color-success-muted)]"
               }`}
             />
           )}
@@ -66,7 +76,7 @@ export default function MicrophoneButton() {
              <motion.div
                animate={{ scale: [1, 1.5, 1], opacity: [0.5, 0, 0.5] }}
                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-               className="absolute w-20 h-20 rounded-full border-2 border-neon-blue"
+               className="absolute h-20 w-20 rounded-full border-2 border-[var(--color-brand)]"
              />
           )}
 
@@ -74,7 +84,7 @@ export default function MicrophoneButton() {
              <motion.div
                animate={{ rotate: 360 }}
                transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-               className="absolute w-20 h-20 rounded-full border-2 border-r-transparent border-neon-yellow border-dashed"
+               className="absolute h-20 w-20 rounded-full border-2 border-dashed border-[var(--color-warning)] border-r-transparent"
              />
           )}
         </AnimatePresence>
@@ -84,14 +94,14 @@ export default function MicrophoneButton() {
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           layout
-          className={`relative z-10 w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 ${
-            micState === "idle" 
-              ? "bg-slate-800 text-slate-300 border border-white/10 hover:bg-slate-700" 
+          className={`relative z-10 flex h-16 w-16 items-center justify-center rounded-full shadow-2xl transition-all duration-300 ${
+            micState === "idle"
+              ? "border border-[var(--color-border-strong)] bg-[var(--color-surface-raised)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]"
               : micState === "listening"
-              ? "bg-neon-blue text-white shadow-[0_0_30px_rgba(59,130,246,0.6)]"
+                ? `border border-[var(--color-brand)] bg-[var(--color-brand)] text-[var(--color-text-inverse)] shadow-[0_0_30px_var(--color-brand-glow)]`
               : micState === "processing"
-              ? "bg-neon-yellow text-slate-900 shadow-[0_0_30px_rgba(245,158,11,0.6)]"
-              : "bg-neon-green text-white shadow-[0_0_30px_rgba(16,185,129,0.6)]"
+                ? `border border-[var(--color-warning)] bg-[var(--color-warning)] text-[var(--color-text-inverse)] shadow-[0_0_24px_color-mix(in_srgb,var(--color-warning)_55%,transparent)]`
+                : `border border-[var(--color-success)] bg-[var(--color-success)] text-[var(--color-text-inverse)] shadow-[0_0_30px_color-mix(in_srgb,var(--color-success)_50%,transparent)]`
           }`}
         >
           {micState === "speaking" ? (
@@ -122,7 +132,7 @@ export default function MicrophoneButton() {
                   ease: "easeInOut",
                 }}
                 className={`w-1 rounded-full ${
-                  micState === "listening" ? "bg-neon-blue" : "bg-neon-green"
+                  micState === "listening" ? "bg-[var(--color-brand)]" : "bg-[var(--color-success)]"
                 }`}
               />
             ))}

@@ -83,16 +83,27 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379"
     use_redis: bool = False
 
-    # CORS
-    allowed_origins: str = "http://localhost:3000"
+    # CORS — comma-separated; include LAN origins when using Next "Network" URL
+    allowed_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
     # Rate limiting
     rate_limit_requests: int = 60
     rate_limit_window: int = 60
 
+    # When true, DELETE /api/v1/sessions/purge-all removes all sessions (dev/admin).
+    allow_session_purge: bool = False
+
     # Context window
     max_context_messages: int = 20
     max_audio_size_mb: int = 25
+
+    # Camera facial sentiment — heuristic | huggingface
+    # huggingface: trpakov/vit-face-expression (ViT, FER2013, ~86M params)
+    camera_sentiment_provider: str = "huggingface"
+    camera_sentiment_model: str = "trpakov/vit-face-expression"
+    # transformers device: -1 = CPU, 0+ = CUDA index, "mps" on Apple Silicon
+    camera_sentiment_device: str = "cpu"
+    camera_sentiment_fallback_heuristic: bool = True
 
     @property
     def origins_list(self) -> List[str]:

@@ -12,15 +12,18 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    "bg-brand-600 hover:bg-brand-500 active:bg-brand-700 text-white shadow-lg shadow-brand-900/30",
+    "bg-[var(--color-brand-600)] hover:bg-[var(--color-brand-500)] active:bg-[var(--color-brand-700)] " +
+    "text-[var(--color-text-inverse)] shadow-lg shadow-[color-mix(in_srgb,var(--color-brand-900)_30%,transparent)]",
   secondary:
     "bg-surface-raised hover:bg-surface-overlay border border-[var(--color-border-strong)] text-[var(--color-text-primary)]",
   ghost:
-    "hover:bg-white/5 active:bg-white/10 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]",
+    "border border-transparent text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] " +
+    "hover:bg-[color-mix(in_srgb,var(--color-text-primary)_8%,transparent)] " +
+    "active:bg-[color-mix(in_srgb,var(--color-text-primary)_12%,transparent)] active:scale-[0.97]",
   danger:
-    "bg-red-600 hover:bg-red-500 active:bg-red-700 text-white",
+    "bg-[var(--color-error)] hover:opacity-90 active:opacity-95 text-[var(--color-text-inverse)]",
   success:
-    "bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white",
+    "bg-[var(--color-success)] hover:opacity-90 active:opacity-95 text-[var(--color-text-inverse)]",
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
@@ -41,7 +44,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={disabled || isLoading}
         className={clsx(
           "inline-flex items-center justify-center font-medium rounded-xl transition-all duration-150",
-          "focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-400 focus-visible:outline-offset-2",
+          "focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-brand-400)] focus-visible:outline-offset-2",
           "disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none",
           "select-none",
           variantClasses[variant],
