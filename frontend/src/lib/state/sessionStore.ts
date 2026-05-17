@@ -4,7 +4,12 @@ import { v4 as uuidv4 } from "uuid";
 import type { SpellStep } from "@/lib/sign/spellingPlan";
 import type { ManualMoodId } from "@/lib/sentiment/sentimentDisplay";
 
-export type MessageRole = "user" | "assistant" | "transcript" | "action-result";
+export type MessageRole =
+  | "user"
+  | "assistant"
+  | "transcript"
+  | "action-result"
+  | "system";
 export type SystemStatus = "idle" | "listening" | "processing" | "speaking";
 export type Language = "en" | "ar";
 export type FontSize = "normal" | "large" | "xlarge";
@@ -86,6 +91,8 @@ interface SessionState {
   replyEmotionHint: { label: string; confidence: number; messageId?: string } | null;
   /** Mood emoji selected before the next send (neutral, angry, happy, etc.). */
   manualMood: ManualMoodId | null;
+  /** True when another user is connected in the same WS room (not solo). */
+  roomHasPeer: boolean;
 
   // Actions
   setSessionId: (id: string) => void;
@@ -123,6 +130,7 @@ interface SessionState {
     value: { label: string; confidence: number; messageId?: string } | null
   ) => void;
   setManualMood: (mood: ManualMoodId | null) => void;
+  setRoomHasPeer: (hasPeer: boolean) => void;
   clearMessages: () => void;
   /** Replace timeline (e.g. after loading history from the API). */
   setMessages: (messages: ChatMessage[]) => void;
@@ -152,6 +160,7 @@ export const useSessionStore = create<SessionState>()(
       cameraSentiment: null,
       replyEmotionHint: null,
       manualMood: null,
+      roomHasPeer: false,
 
       setSessionId: (id) => set({ sessionId: id }),
 
@@ -192,6 +201,21 @@ export const useSessionStore = create<SessionState>()(
       setCameraSentiment: (value) => set({ cameraSentiment: value }),
       setReplyEmotionHint: (value) => set({ replyEmotionHint: value }),
       setManualMood: (manualMood) => set({ manualMood }),
+      setRoomHasPeer: (roomHasPeer) =>
+        set((state) => {
+          if (!roomHasPeer) {
+            return { roomHasPeer: false };
+          }
+          const messages = state.messages.filter(
+            (m) => m.role !== "assistant" || m.action || m.role === "system"
+          );
+          return {
+            roomHasPeer: true,
+            messages,
+            liveAiResponse: "",
+            replyEmotionHint: null,
+          };
+        }),
       clearMessages: () =>
         set({
           messages: [],
@@ -200,6 +224,7 @@ export const useSessionStore = create<SessionState>()(
           signPreview: null,
           replyEmotionHint: null,
           manualMood: null,
+          roomHasPeer: false,
         }),
       setMessages: (messages) =>
         set({

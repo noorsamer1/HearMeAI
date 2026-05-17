@@ -526,7 +526,18 @@ async def websocket_session(
             return
 
     await room_manager.connect(session_id, user_key, websocket)
-    await websocket.send_json({"type": "session_joined", "sessionId": session_id, "userId": user_key})
+    initial_peer_count = len(
+        room_manager.local_peer_keys(session_id, exclude_user_key=user_key)
+    )
+    await websocket.send_json(
+        {
+            "type": "session_joined",
+            "sessionId": session_id,
+            "userId": user_key,
+            "peerCount": initial_peer_count,
+        }
+    )
+    await _broadcast_room_presence(session_id)
 
     # Notify other session participants who are online that this user has joined.
     if room_mode and user_uuid:
@@ -665,7 +676,12 @@ async def websocket_session(
         if sign:
             await broadcast_fanout(session_id, {"type": "sign_suggestion", **sign}, exclude_user_key=None)
 
-    async def persist_ai_assistant_message(content: str, message_id: UUID) -> None:
+    async def persist_ai_assistant_message(
+        content: str,
+        message_id: UUID,
+        *,
+        action: str | None = None,
+    ) -> None:
         """Store assistant reply so session history survives reload (separate from user/transcript rows)."""
         if not room_mode or not (content or "").strip():
             return
@@ -679,6 +695,17 @@ async def websocket_session(
                 content_text=content.strip(),
                 message_id=message_id,
             )
+            if action:
+                await message_crud.upsert_ai_metadata(
+                    db,
+                    message_id,
+                    sentiment_label="neutral",
+                    sentiment_score=0.0,
+                    intent="other",
+                    llm_model=settings.openrouter_model,
+                    prompt_version="v1",
+                    enhancement_text=f"action:{action}",
+                )
             await db.commit()
 
     async def save_ai_meta(
@@ -687,16 +714,24 @@ async def websocket_session(
         enhancement: str,
         *,
         model_name: str,
+        sentiment_label: str | None = None,
+        sentiment_score: float | None = None,
     ) -> None:
         if not room_mode:
             return
+        label = sentiment_label or str(classification.get("emotion", "neutral"))
+        score = (
+            float(sentiment_score)
+            if sentiment_score is not None
+            else float(classification.get("confidence") or 0.0)
+        )
         factory = get_session_factory()
         async with factory() as db:
             await message_crud.upsert_ai_metadata(
                 db,
                 msg_uuid,
-                sentiment_label=str(classification.get("emotion", "neutral")),
-                sentiment_score=float(classification.get("confidence") or 0.0),
+                sentiment_label=label,
+                sentiment_score=score,
                 intent=str(classification.get("intent", "other")),
                 llm_model=model_name,
                 prompt_version="v1",
@@ -897,13 +932,17 @@ async def websocket_session(
                 await persist_ai_assistant_message(enhancement, uuid4())
                 persisted_assistant_row = True
 
-        if room_mode and settings.openrouter_api_key:
+        if room_mode:
             meta_enhancement = "" if persisted_assistant_row else enhancement
             await save_ai_meta(
                 msg_uuid,
                 classification,
                 meta_enhancement,
-                model_name=settings.enhancer_model_name if meta_enhancement else settings.classifier_model,
+                model_name=settings.enhancer_model_name
+                if meta_enhancement
+                else settings.classifier_model,
+                sentiment_label=emotion_label,
+                sentiment_score=emotion_conf,
             )
 
         await finish_audio_capture("idle")
@@ -965,51 +1004,6 @@ async def websocket_session(
         # Who else is currently connected in this room?
         peer_keys = room_manager.local_peer_keys(session_id, exclude_user_key=user_key)
 
-        # ── AI interpretation for deaf/both peers ────────────────────────────────
-        # When deaf/both users receive a typed message they can't hear TTS for it.
-        # Generate a brief AI interpretation note and send it directly to them.
-        if peer_keys and room_mode and settings.openrouter_api_key and user_uuid:
-            deaf_peer_keys = await _get_deaf_peer_keys(session_id, user_uuid)
-            if deaf_peer_keys:
-                interp_messages = [
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are a sign-language communication assistant. "
-                            "Summarize the user's message in ONE short sentence "
-                            "(max 15 words) that a deaf person can quickly read. "
-                            "Do NOT add pleasantries or extra context. Return only the sentence."
-                        ),
-                    },
-                    {
-                        "role": "user",
-                        "content": f"[{user_display_name}] says: {text}",
-                    },
-                ]
-                try:
-                    interp_text = await llm.complete_with_model(
-                        model=settings.classifier_model,
-                        messages=interp_messages,
-                        temperature=0.3,
-                        max_tokens=60,
-                        json_mode=False,
-                    )
-                    interp_text = (interp_text or "").strip()
-                    if interp_text:
-                        interp_payload = {
-                            "type": "peer_ai_assist",
-                            "text": interp_text,
-                            "messageId": str(uuid4()),
-                            "senderName": user_display_name,
-                        }
-                        for dk in deaf_peer_keys:
-                            await room_manager.send_to(session_id, dk, interp_payload)
-                        # NOTE: sign_motion_plan for this message was already broadcast to all
-                        # participants (including deaf peers) by emit_sign_motion_plan() above.
-                        # Sending a second plan here would race-override the first one.
-                except Exception as exc:
-                    logger.debug("deaf_peer_interp_failed", error=str(exc))
-
         # ── Auto-TTS for peers: mute/hearing users receive the sender's text as speech ──
         if peer_keys and room_mode:
             try:
@@ -1058,6 +1052,8 @@ async def websocket_session(
                         classification,
                         "",
                         model_name=settings.openrouter_model,
+                        sentiment_label=emotion_label,
+                        sentiment_score=emotion_conf,
                     )
                 if request_tts:
                     await set_status("speaking")
@@ -1094,6 +1090,8 @@ async def websocket_session(
                 classification,
                 "" if enhancement else "",
                 model_name=settings.enhancer_model_name,
+                sentiment_label=emotion_label,
+                sentiment_score=emotion_conf,
             )
             if request_tts and enhancement:
                 await set_status("speaking")
@@ -1133,6 +1131,16 @@ async def websocket_session(
                 await send({"type": "error", "message": "Speech synthesis failed", "code": "tts_error"})
             await set_status("idle")
 
+        if room_mode:
+            await save_ai_meta(
+                msg_uuid,
+                classification,
+                "",
+                model_name=settings.classifier_model,
+                sentiment_label=emotion_label,
+                sentiment_score=emotion_conf,
+            )
+
     async def handle_action(action: str, text: str, target_lang: str | None, source_msg_id: str):
         await set_status("processing")
         result_id = str(uuid4())
@@ -1163,7 +1171,9 @@ async def websocket_session(
                 }
             )
             if result_text:
-                await persist_ai_assistant_message(result_text, UUID(result_id))
+                await persist_ai_assistant_message(
+                    result_text, UUID(result_id), action=action
+                )
         except Exception as exc:
             logger.error("Action failed", action=action, session_id=session_id, error=str(exc))
             await send({"type": "error", "message": f"Action '{action}' failed", "code": "action_error"})
@@ -1272,6 +1282,7 @@ async def websocket_session(
     except WebSocketDisconnect:
         await _notify_peer_left(session_id, user_key, user_display_name)
         room_manager.disconnect(session_id, user_key)
+        await _broadcast_room_presence(session_id)
         context_registry.delete(session_id)
     except Exception as exc:
         logger.error("WebSocket error", session_id=session_id, error=str(exc))
@@ -1281,6 +1292,7 @@ async def websocket_session(
             pass
         await _notify_peer_left(session_id, user_key, user_display_name)
         room_manager.disconnect(session_id, user_key)
+        await _broadcast_room_presence(session_id)
         context_registry.delete(session_id)
 
 
@@ -1319,18 +1331,38 @@ async def global_notify_socket(
         room_manager.disconnect_notify(user_key)
 
 
+async def _broadcast_room_presence(session_id: str) -> None:
+    """Tell each connected client how many other peers are in the room."""
+    try:
+        for pk in room_manager.local_peer_keys(session_id, exclude_user_key=None):
+            peer_count = len(
+                room_manager.local_peer_keys(session_id, exclude_user_key=pk)
+            )
+            await room_manager.send_to(
+                session_id,
+                pk,
+                {"type": "room_presence", "peerCount": peer_count},
+            )
+    except Exception as exc:
+        logger.warning("room_presence broadcast failed", session_id=session_id, error=str(exc))
+
+
 async def _notify_peer_left(session_id: str, leaving_key: str, display_name: str) -> None:
     """Broadcast a peer_left event to all remaining peers before the connection is dropped."""
     try:
         remaining = room_manager.local_peer_keys(session_id, exclude_user_key=leaving_key)
         if not remaining:
             return
-        payload = {
-            "type": "peer_left",
-            "senderName": display_name,
-            "message": f"{display_name} has left the conversation.",
-        }
         for pk in remaining:
+            peer_count = len(
+                room_manager.local_peer_keys(session_id, exclude_user_key=pk)
+            )
+            payload = {
+                "type": "peer_left",
+                "senderName": display_name,
+                "message": f"{display_name} has left the conversation.",
+                "peerCount": peer_count,
+            }
             await room_manager.send_to(session_id, pk, payload)
     except Exception as exc:
         logger.warning("peer_left broadcast failed", session_id=session_id, error=str(exc))

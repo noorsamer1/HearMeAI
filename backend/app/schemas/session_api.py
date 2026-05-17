@@ -39,6 +39,7 @@ class MessageOut(BaseModel):
     content_text: str
     created_at: datetime
     sentiment_label: str | None = None
+    sentiment_score: float | None = None
     intent: str | None = None
     enhancement_text: str | None = None
 

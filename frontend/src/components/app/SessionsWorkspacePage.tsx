@@ -19,6 +19,9 @@ import { ChatWorkspace } from "@/components/chat/ChatWorkspace";
 import { Button } from "@/components/common/Button";
 import { useGlobalNotify } from "@/lib/hooks/useGlobalNotify";
 import { PeerJoinOverlay } from "@/components/chat/PeerJoinOverlay";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import { showToast } from "@/components/common/Toast";
+import { useTranslations } from "@/lib/i18n";
 
 const RECENT_SESSION_KEY = "hearmeai-recent-session";
 const RECENT_SESSIONS_KEY = "hearmeai-recent-sessions";
@@ -38,10 +41,11 @@ interface SessionsWorkspacePageProps {
 
 export default function SessionsWorkspacePage({ initialSessionId = null }: SessionsWorkspacePageProps) {
   const router = useRouter();
+  const language = useSessionStore((s) => s.language);
+  const t = useTranslations(language);
   const setSessionId = useSessionStore((s) => s.setSessionId);
   const clearMessages = useSessionStore((s) => s.clearMessages);
   const setMessages = useSessionStore((s) => s.setMessages);
-
   const [token, setToken] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const currentUserIdRef = useRef<string | null>(null);
@@ -54,6 +58,11 @@ export default function SessionsWorkspacePage({ initialSessionId = null }: Sessi
   const [sessionLoading, setSessionLoading] = useState(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
+  const [deleteTarget, setDeleteTarget] = useState<{ sessionId: string; label: string } | null>(
+    null
+  );
+  const [deleteForbidden, setDeleteForbidden] = useState<{ sessionId: string } | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   useEffect(() => {
     const t = getStoredToken();
@@ -148,7 +157,14 @@ export default function SessionsWorkspacePage({ initialSessionId = null }: Sessi
     return () => {
       cancelled = true;
     };
-  }, [activeSessionId, token, currentUserId, setSessionId, clearMessages, setMessages]);
+  }, [
+    activeSessionId,
+    token,
+    currentUserId,
+    setSessionId,
+    clearMessages,
+    setMessages,
+  ]);
 
   const sortedSessions = useMemo(
     () => [...sessions].sort((a, b) => b.at - a.at),
@@ -175,18 +191,45 @@ export default function SessionsWorkspacePage({ initialSessionId = null }: Sessi
     }
   }
 
-  async function removeSession(sessionId: string) {
-    const label = sessionId.slice(0, 8);
-    const ok = window.confirm(
-      `Delete session ${label} permanently? This removes the chat history for everyone in the session and cannot be undone.`
-    );
-    if (!ok || !token) return;
+  function requestDeleteSession(sessionId: string) {
+    setDeleteTarget({
+      sessionId,
+      label: sessionId.slice(0, 8).toUpperCase(),
+    });
+  }
+
+  async function confirmDeleteSession() {
+    if (!deleteTarget || !token) return;
+    const { sessionId } = deleteTarget;
+    setDeleteBusy(true);
     try {
       await deleteSessionApi(token, sessionId);
+      setDeleteTarget(null);
       dropSessionFromUi(sessionId);
+      showToast("success", "Session deleted.");
     } catch (err) {
-      setSessionError(err instanceof Error ? err.message : "Could not delete session");
+      const message = err instanceof Error ? err.message : t.sessions.deleteFailed;
+      const forbidden =
+        message.toLowerCase().includes("not allowed") ||
+        message.toLowerCase().includes("not a participant") ||
+        message.includes("403");
+      if (forbidden) {
+        setDeleteTarget(null);
+        setDeleteForbidden({ sessionId });
+      } else {
+        setSessionError(message);
+        showToast("error", message);
+      }
+    } finally {
+      setDeleteBusy(false);
     }
+  }
+
+  function confirmRemoveLocalSession() {
+    if (!deleteForbidden) return;
+    dropSessionFromUi(deleteForbidden.sessionId);
+    setDeleteForbidden(null);
+    showToast("info", "Session removed from your list.");
   }
 
   const handleSessionDeleted = useCallback(() => {
@@ -196,6 +239,32 @@ export default function SessionsWorkspacePage({ initialSessionId = null }: Sessi
 
   return (
     <>
+    <ConfirmDialog
+      open={!!deleteTarget}
+      title={t.sessions.deleteTitle}
+      description={t.sessions.deleteDescription.replace(
+        "#{label}",
+        deleteTarget?.label ?? ""
+      )}
+      confirmLabel={t.sessions.deleteConfirm}
+      cancelLabel={t.sessions.deleteCancel}
+      variant="danger"
+      isLoading={deleteBusy}
+      onConfirm={confirmDeleteSession}
+      onCancel={() => {
+        if (!deleteBusy) setDeleteTarget(null);
+      }}
+    />
+    <ConfirmDialog
+      open={!!deleteForbidden}
+      title={t.sessions.deleteForbiddenTitle}
+      description={t.sessions.deleteForbiddenDescription}
+      confirmLabel={t.sessions.removeFromList}
+      cancelLabel={t.sessions.deleteCancel}
+      variant="primary"
+      onConfirm={confirmRemoveLocalSession}
+      onCancel={() => setDeleteForbidden(null)}
+    />
     {/* Global peer-join notification — visible on lobby even without active session */}
     <PeerJoinOverlay userType={userType} />
     <div className="h-full min-h-0 flex bg-[var(--color-bg)]">
@@ -270,7 +339,7 @@ export default function SessionsWorkspacePage({ initialSessionId = null }: Sessi
                       {isActive && <span className="text-xs text-[var(--color-brand)]">Active</span>}
                       <button
                         type="button"
-                        onClick={() => removeSession(session.sessionId)}
+                        onClick={() => requestDeleteSession(session.sessionId)}
                         className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
                         aria-label={`Delete session ${session.sessionId.slice(0, 8)} permanently`}
                         title="Delete session permanently for everyone"
@@ -427,16 +496,24 @@ function parseDbTimestamp(raw: string): number {
   return Number.isFinite(t) ? t : Date.now();
 }
 
+const ACTION_META_PREFIX = "action:";
+
+function parseActionFromEnhancement(enhancement: string | null | undefined): string | undefined {
+  if (!enhancement?.startsWith(ACTION_META_PREFIX)) return undefined;
+  const action = enhancement.slice(ACTION_META_PREFIX.length).trim();
+  return action || undefined;
+}
+
 function sessionRowToChatMessage(
   row: SessionMessageRow,
   currentUserId: string | null,
   participantNames: Record<string, string>
 ): ChatMessage | null {
   const participantCount = Object.keys(participantNames).length;
+  const actionTag = parseActionFromEnhancement(row.enhancement_text);
 
-  // AI assistant messages only belong in solo sessions.
-  // In multi-user sessions they are stale artefacts from before the AI-silence fix.
-  if (row.kind === "ai_assistant" && participantCount > 1) {
+  // Auto assistant replies are solo-only; peer action results are kept in any session size.
+  if (row.kind === "ai_assistant" && participantCount > 1 && !actionTag) {
     return null;
   }
 
@@ -445,7 +522,9 @@ function sessionRowToChatMessage(
       ? "transcript"
       : row.kind === "user_text"
         ? "user"
-        : "assistant";
+        : actionTag
+          ? "action-result"
+          : "assistant";
 
   // Determine if this message was sent by someone else (peer)
   const fromPeer =
@@ -459,6 +538,9 @@ function sessionRowToChatMessage(
       ? (participantNames[row.sender_id] ?? "Peer")
       : undefined;
 
+  const sentimentScore =
+    typeof row.sentiment_score === "number" ? row.sentiment_score : undefined;
+
   return {
     id: row.id,
     role,
@@ -467,6 +549,10 @@ function sessionRowToChatMessage(
     isPartial: false,
     fromPeer: fromPeer || undefined,
     senderName,
+    action: actionTag,
+    sentimentLabel: row.sentiment_label ?? undefined,
+    sentimentScore,
+    sentimentSource: row.sentiment_label ? "text" : undefined,
   };
 }
 

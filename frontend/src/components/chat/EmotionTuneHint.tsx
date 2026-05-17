@@ -14,15 +14,17 @@ const AUTO_DISMISS_MS = 12_000;
 
 export function EmotionTuneHint() {
   const replyEmotionHint = useSessionStore((s) => s.replyEmotionHint);
+  const roomHasPeer = useSessionStore((s) => s.roomHasPeer);
   const setReplyEmotionHint = useSessionStore((s) => s.setReplyEmotionHint);
   const language = useSessionStore((s) => s.language);
   const t = useTranslations(language);
 
   useEffect(() => {
+    if (roomHasPeer) return;
     if (!replyEmotionHint) return;
     const timer = window.setTimeout(() => setReplyEmotionHint(null), AUTO_DISMISS_MS);
     return () => window.clearTimeout(timer);
-  }, [replyEmotionHint, setReplyEmotionHint]);
+  }, [replyEmotionHint, setReplyEmotionHint, roomHasPeer]);
 
   const moodKey = formatEmotionLabel(replyEmotionHint?.label);
   const moodLabel =
@@ -39,7 +41,7 @@ export function EmotionTuneHint() {
 
   return (
     <AnimatePresence>
-      {replyEmotionHint && (
+      {replyEmotionHint && !roomHasPeer && (
         <motion.div
           key={`${replyEmotionHint.messageId ?? "hint"}-${replyEmotionHint.label}`}
           initial={{ opacity: 0, y: -6 }}

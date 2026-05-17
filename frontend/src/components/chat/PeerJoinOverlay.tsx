@@ -10,10 +10,11 @@
  */
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { UserCheck } from "lucide-react";
 import { useSessionStore } from "@/lib/state/sessionStore";
 import { SignPreview } from "@/components/avatar/SignPreview";
+import { useTranslations } from "@/lib/i18n";
 
 type ProfileUserType = "deaf" | "mute" | "both" | "normal";
 
@@ -21,9 +22,24 @@ interface PeerJoinOverlayProps {
   userType?: ProfileUserType | null;
 }
 
+function sessionIdFromPath(pathname: string): string | null {
+  const match = pathname.match(/\/app\/sessions\/([^/]+)/);
+  return match?.[1] ?? null;
+}
+
 export function PeerJoinOverlay({ userType }: PeerJoinOverlayProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const language = useSessionStore((s) => s.language);
+  const t = useTranslations(language);
   const { peerJoinAlert, setPeerJoinAlert } = useSessionStore();
+
+  const routeSessionId = sessionIdFromPath(pathname);
+  const alreadyInSession =
+    !!peerJoinAlert?.sessionId && routeSessionId === peerJoinAlert.sessionId;
+
+  const primaryLabel = alreadyInSession ? t.peerJoin.openChat : t.peerJoin.joinChat;
+  const bodySuffix = alreadyInSession ? t.peerJoin.bodyInSession : t.peerJoin.bodyJoin;
 
   return (
     <AnimatePresence>
@@ -37,16 +53,15 @@ export function PeerJoinOverlay({ userType }: PeerJoinOverlayProps) {
           style={{ background: "rgba(0,0,0,0.60)", backdropFilter: "blur(8px)" }}
           role="alertdialog"
           aria-modal="true"
-          aria-label="Partner joined notification"
+          aria-label="Partner wants to chat"
         >
-          <div
+          <motion.div
             className="relative w-full max-w-sm rounded-2xl p-6 shadow-2xl flex flex-col items-center gap-4 text-center"
             style={{
               background: "var(--color-surface)",
               border: "1px solid rgba(255,255,255,0.12)",
             }}
           >
-            {/* Pulsing icon */}
             <motion.div
               animate={{ scale: [1, 1.08, 1] }}
               transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
@@ -59,14 +74,14 @@ export function PeerJoinOverlay({ userType }: PeerJoinOverlayProps) {
               <UserCheck className="w-8 h-8" style={{ color: "#22c55e" }} />
             </motion.div>
 
-            <div>
+            <motion.div>
               <h3
                 className="text-lg font-bold mb-1"
                 style={{ color: "var(--color-text-primary)" }}
               >
                 {userType === "deaf" || userType === "both"
-                  ? "👋 Partner wants to chat"
-                  : "Partner is online"}
+                  ? t.peerJoin.titleDeaf
+                  : t.peerJoin.titleHearing}
               </h3>
               <p
                 className="text-sm leading-relaxed"
@@ -78,11 +93,10 @@ export function PeerJoinOverlay({ userType }: PeerJoinOverlayProps) {
                 >
                   {peerJoinAlert.name}
                 </span>{" "}
-                is online and wants to join the conversation.
+                {bodySuffix}
               </p>
-            </div>
+            </motion.div>
 
-            {/* Deaf / both users get a sign animation so they understand visually */}
             {(userType === "deaf" || userType === "both") && (
               <div
                 className="w-full rounded-xl overflow-hidden"
@@ -96,8 +110,9 @@ export function PeerJoinOverlay({ userType }: PeerJoinOverlayProps) {
               </div>
             )}
 
-            <div className="flex flex-col gap-2 w-full mt-1">
+            <motion.div className="flex flex-col gap-2 w-full mt-1">
               <button
+                type="button"
                 onClick={() => {
                   const sid = peerJoinAlert.sessionId;
                   setPeerJoinAlert(null);
@@ -111,9 +126,10 @@ export function PeerJoinOverlay({ userType }: PeerJoinOverlayProps) {
                   boxShadow: "0 0 16px var(--color-brand-glow)",
                 }}
               >
-                Rejoin Chat
+                {primaryLabel}
               </button>
               <button
+                type="button"
                 onClick={() => setPeerJoinAlert(null)}
                 className="w-full rounded-xl py-2 text-sm transition-all active:scale-95"
                 style={{
@@ -122,10 +138,10 @@ export function PeerJoinOverlay({ userType }: PeerJoinOverlayProps) {
                   border: "1px solid var(--color-border)",
                 }}
               >
-                Dismiss
+                {t.peerJoin.dismiss}
               </button>
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         </motion.div>
       )}
     </AnimatePresence>

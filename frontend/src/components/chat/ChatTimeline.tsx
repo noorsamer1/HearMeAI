@@ -20,11 +20,12 @@ const EMPTY_SUBTITLES: Record<string, string> = {
 };
 
 export function ChatTimeline({ onAction }: ChatTimelineProps) {
-  const { messages, liveAiResponse, language, userType } = useSessionStore();
+  const { messages, liveAiResponse, language, userType, roomHasPeer } = useSessionStore();
   const t = useTranslations(language);
   const emptySubtitle = EMPTY_SUBTITLES[userType ?? "normal"] ?? t.chat.emptySubtitle;
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const showLiveAi = !!liveAiResponse && !roomHasPeer;
 
   useEffect(() => {
     const container = scrollContainerRef.current;
@@ -37,7 +38,7 @@ export function ChatTimeline({ onAction }: ChatTimelineProps) {
     if (distanceFromBottom < 200) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages, liveAiResponse]);
+  }, [messages, liveAiResponse, showLiveAi]);
 
   const groupedMessages = useMemo(() => {
     const nowThresholdMs = Date.now() - 15 * 60 * 1000;
@@ -47,7 +48,7 @@ export function ChatTimeline({ onAction }: ChatTimelineProps) {
     };
   }, [messages]);
 
-  const isEmpty = messages.length === 0 && !liveAiResponse;
+  const isEmpty = messages.length === 0 && !showLiveAi;
 
   return (
     <div
@@ -178,7 +179,7 @@ export function ChatTimeline({ onAction }: ChatTimelineProps) {
 
           {/* Live streaming AI response */}
           <AnimatePresence>
-            {liveAiResponse && (
+            {showLiveAi && (
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -200,7 +201,7 @@ export function ChatTimeline({ onAction }: ChatTimelineProps) {
                     color: "var(--color-text-primary)",
                   }}
                 >
-                  <p className="whitespace-pre-wrap">{liveAiResponse}</p>
+                  <p className="whitespace-pre-wrap">{liveAiResponse!}</p>
                   {/* Typing dots */}
                   <span className="inline-flex items-end gap-0.5 ml-1 mb-0.5" aria-label="Typing">
                     {[0, 1, 2].map((i) => (

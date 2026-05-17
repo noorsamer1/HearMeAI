@@ -465,7 +465,7 @@ export default function LobbyPage() {
               </div>
               <div className="flex gap-2">
                 <Button type="button" size="sm" variant="secondary" onClick={() => router.push(`/chat/${recentSession.sessionId}`)}>
-                  Rejoin chat
+                  Open chat
                 </Button>
                 <Button type="button" size="sm" variant="ghost" onClick={clearRecentSession}>
                   Clear

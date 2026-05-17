@@ -26,6 +26,7 @@ export interface SessionMessageRow {
   content_text: string;
   created_at: string;
   sentiment_label?: string | null;
+  sentiment_score?: number | null;
   intent?: string | null;
   enhancement_text?: string | null;
 }

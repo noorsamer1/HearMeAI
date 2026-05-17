@@ -68,6 +68,12 @@ export const en = {
     peerSourceText: "text",
     peerSourceExpressionAndText: "expression + text",
     peerSourceManual: "mood you chose",
+    selfMayFeelFrustrated: "You may be feeling frustrated",
+    selfMayFeelSad: "You may be feeling sad",
+    selfMayFeelAnxious: "You may be feeling anxious",
+    selfMayFeelHappy: "You may be feeling positive",
+    selfMayFeelNeutral: "Your mood appears neutral",
+    actionResult: "Result",
   },
   accessibility: {
     title: "Accessibility",
@@ -84,6 +90,27 @@ export const en = {
     english: "English",
     arabic: "Arabic (العربية)",
     toggle: "Switch language",
+  },
+  sessions: {
+    deleteTitle: "Delete session?",
+    deleteDescription:
+      "Session #{label} and all chat history will be removed for every participant. This cannot be undone.",
+    deleteConfirm: "Delete permanently",
+    deleteCancel: "Cancel",
+    deleteForbiddenTitle: "Cannot delete on server",
+    deleteForbiddenDescription:
+      "You are not listed as a member of this session (it may be from an old invite or another account). You can remove it from your sidebar only.",
+    removeFromList: "Remove from sidebar",
+    deleteFailed: "Could not delete session",
+  },
+  peerJoin: {
+    titleDeaf: "Partner wants to chat",
+    titleHearing: "Partner is online",
+    bodyJoin: "is online and wants to join this session.",
+    bodyInSession: "joined and is waiting in the chat.",
+    openChat: "Open chat",
+    joinChat: "Join chat",
+    dismiss: "Dismiss",
   },
   errors: {
     connectionFailed: "Could not connect to server. Retrying...",

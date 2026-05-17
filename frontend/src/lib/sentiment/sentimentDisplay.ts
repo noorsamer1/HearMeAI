@@ -119,3 +119,51 @@ export function peerMoodHint(
 
   return `${moodLine} (${sourceLine})`;
 }
+
+type SelfMoodTranslations = {
+  selfMayFeelFrustrated: string;
+  selfMayFeelSad: string;
+  selfMayFeelAnxious: string;
+  selfMayFeelHappy: string;
+  selfMayFeelNeutral: string;
+  peerSourceExpression: string;
+  peerSourceText: string;
+  peerSourceExpressionAndText: string;
+  peerSourceManual: string;
+};
+
+/**
+ * Subtitle under your own message when fused mood meets the confidence gate.
+ */
+export function selfMoodHint(
+  label: string | null | undefined,
+  confidence: number | null | undefined,
+  source: SentimentSource | null | undefined,
+  t: SelfMoodTranslations
+): string | null {
+  if (!sentimentEmoji(label, confidence)) return null;
+
+  const moodKey = formatEmotionLabel(label);
+  const moodLine =
+    moodKey === "happy"
+      ? t.selfMayFeelHappy
+      : moodKey === "sad"
+        ? t.selfMayFeelSad
+        : moodKey === "angry"
+          ? t.selfMayFeelFrustrated
+          : moodKey === "anxious"
+            ? t.selfMayFeelAnxious
+            : t.selfMayFeelNeutral;
+
+  const src = (source || "text").toLowerCase();
+  const sourceLine =
+    src === "manual"
+      ? t.peerSourceManual
+      : src === "expression"
+        ? t.peerSourceExpression
+        : src === "expression_and_text"
+          ? t.peerSourceExpressionAndText
+          : t.peerSourceText;
+
+  return `${moodLine} (${sourceLine})`;
+}

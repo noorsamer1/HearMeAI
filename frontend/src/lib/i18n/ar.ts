@@ -70,6 +70,12 @@ export const ar: Translations = {
     peerSourceText: "النص",
     peerSourceExpressionAndText: "تعبير الوجه + النص",
     peerSourceManual: "المزاج الذي اخترته",
+    selfMayFeelFrustrated: "قد تشعر بالإحباط",
+    selfMayFeelSad: "قد تشعر بالحزن",
+    selfMayFeelAnxious: "قد تشعر بالقلق",
+    selfMayFeelHappy: "قد تشعر بمزاج إيجابي",
+    selfMayFeelNeutral: "يبدو مزاجك محايدًا",
+    actionResult: "النتيجة",
   },
   accessibility: {
     title: "إمكانية الوصول",
@@ -86,6 +92,27 @@ export const ar: Translations = {
     english: "English (الإنجليزية)",
     arabic: "العربية",
     toggle: "تغيير اللغة",
+  },
+  sessions: {
+    deleteTitle: "حذف الجلسة؟",
+    deleteDescription:
+      "سيتم حذف الجلسة #{label} وسجل المحادثة بالكامل لجميع المشاركين. لا يمكن التراجع.",
+    deleteConfirm: "حذف نهائي",
+    deleteCancel: "إلغاء",
+    deleteForbiddenTitle: "تعذّر الحذف من الخادم",
+    deleteForbiddenDescription:
+      "أنت لست مسجّلًا كعضو في هذه الجلسة (قد تكون من دعوة قديمة أو حساب آخر). يمكنك إزالتها من الشريط الجانبي فقط.",
+    removeFromList: "إزالة من القائمة",
+    deleteFailed: "تعذّر حذف الجلسة",
+  },
+  peerJoin: {
+    titleDeaf: "الشريك يريد المحادثة",
+    titleHearing: "الشريك متصل",
+    bodyJoin: "متصل ويريد الانضمام إلى هذه الجلسة.",
+    bodyInSession: "انضم وهو بانتظارك في المحادثة.",
+    openChat: "فتح المحادثة",
+    joinChat: "انضم للمحادثة",
+    dismiss: "تجاهل",
   },
   errors: {
     connectionFailed: "تعذر الاتصال بالخادم. إعادة المحاولة...",

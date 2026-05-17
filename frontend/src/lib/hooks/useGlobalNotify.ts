@@ -54,7 +54,7 @@ export function useGlobalNotify({ wsToken, userType }: UseGlobalNotifyOptions = 
 
           // Hearing users get TTS announcement
           if (ut === "mute" || ut === "normal") {
-            const ttsMsg = `${name} is online and wants to join the room. Press the button to rejoin the chat.`;
+            const ttsMsg = `${name} is online and wants to join the session. Open the chat to connect.`;
             const utter = new SpeechSynthesisUtterance(ttsMsg);
             utter.rate = 0.95;
             window.speechSynthesis?.speak(utter);

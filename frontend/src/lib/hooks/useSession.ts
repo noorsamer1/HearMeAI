@@ -100,7 +100,10 @@ export function useSession(opts: UseSessionOptions = {}) {
     setPeerLeftAlert,
     setPeerJoinAlert,
     setReplyEmotionHint,
+    setRoomHasPeer,
   } = useSessionStore();
+
+  const isSoloRoom = () => !useSessionStore.getState().roomHasPeer;
 
   const handleWSStatus = useCallback(
     (status: WSStatus) => {
@@ -125,9 +128,16 @@ export function useSession(opts: UseSessionOptions = {}) {
     });
 
     // ── Session joined (contract: session_joined) ─────────────
-    ws.on("session_joined", () => {
+    ws.on("session_joined", (e) => {
       setIsConnected(true);
       setSystemStatus("idle");
+      const peerCount = typeof e.peerCount === "number" ? e.peerCount : 0;
+      setRoomHasPeer(peerCount > 0);
+    });
+
+    ws.on("room_presence", (e) => {
+      const peerCount = typeof e.peerCount === "number" ? e.peerCount : 0;
+      setRoomHasPeer(peerCount > 0);
     });
 
     // ── Interim transcript (contract: transcript_interim) ─────
@@ -187,6 +197,7 @@ export function useSession(opts: UseSessionOptions = {}) {
     });
 
     ws.on("emotion_tuned", (e) => {
+      if (!isSoloRoom()) return;
       const label = (e.label as string) || "";
       const confidence = typeof e.confidence === "number" ? e.confidence : 0;
       if (!label || confidence < 0.62) return;
@@ -230,13 +241,19 @@ export function useSession(opts: UseSessionOptions = {}) {
     ws.on("ai_partial", (e) => {
       const msgId = e.messageId as string;
       const text = e.text as string;
+      const action = e.action as string | undefined;
       if (!msgId) return;
+
+      const role = action ? "action-result" : "assistant";
+      if (!action && !isSoloRoom()) return;
 
       if (!pendingAiMessageId.current.has(msgId)) {
         const localId = addMessage({
-          role: "assistant",
+          role,
           text,
           isPartial: true,
+          action,
+          sourceMessageId: e.sourceMessageId as string | undefined,
         });
         pendingAiMessageId.current.set(msgId, localId);
         clearLiveResponse();
@@ -244,7 +261,7 @@ export function useSession(opts: UseSessionOptions = {}) {
       }
 
       const localId = pendingAiMessageId.current.get(msgId)!;
-      updateMessage(localId, { text, isPartial: true });
+      updateMessage(localId, { text, isPartial: true, action, role });
     });
 
     // ── AI final ─────────────────────────────────────────────
@@ -256,8 +273,14 @@ export function useSession(opts: UseSessionOptions = {}) {
         completedAiServerIds.current.add(msgId);
       }
       clearLiveResponse();
+
+      const role = action ? "action-result" : "assistant";
+      if (!action && !isSoloRoom()) return;
+
       const utAi = userTypeRef.current;
-      if (utAi === "deaf" || utAi === "both") {
+      if (action) {
+        // Action results on peer text — no sign preview from utility output.
+      } else if (utAi === "deaf" || utAi === "both") {
         applySpellPreviewForDeaf(aiText);
       } else {
         const phraseKey = inferSignPhraseKey(aiText);
@@ -267,18 +290,17 @@ export function useSession(opts: UseSessionOptions = {}) {
       }
 
       if (pendingAiMessageId.current.has(msgId)) {
-        // Update existing message from partial
         const localId = pendingAiMessageId.current.get(msgId)!;
         updateMessage(localId, {
           text: aiText,
           isPartial: false,
           action,
+          role,
         });
         pendingAiMessageId.current.delete(msgId);
       } else {
-        // New AI message
         const localId = addMessage({
-          role: "assistant",
+          role,
           text: aiText,
           isPartial: false,
           action,
@@ -293,6 +315,7 @@ export function useSession(opts: UseSessionOptions = {}) {
     // ── AI response (contract: ai_response) ──────────────────
     // Peers / non-streaming paths only — skip if this client already got ai_final.
     ws.on("ai_response", (e) => {
+      if (!isSoloRoom()) return;
       const msgId = e.messageId as string | undefined;
       if (msgId && completedAiServerIds.current.has(msgId)) {
         clearLiveResponse();
@@ -388,6 +411,7 @@ export function useSession(opts: UseSessionOptions = {}) {
     });
 
     ws.on("ai_enhancement", (e) => {
+      if (!isSoloRoom()) return;
       const t = e.text as string;
       if (t) {
         addMessage({ role: "assistant", text: t });
@@ -417,9 +441,11 @@ export function useSession(opts: UseSessionOptions = {}) {
     ws.on("peer_left", (e) => {
       const name = (e.senderName as string) || "Your partner";
       const msg = (e.message as string) || `${name} has left the conversation.`;
+      const peerCount =
+        typeof e.peerCount === "number" ? (e.peerCount as number) : 0;
+      setRoomHasPeer(peerCount > 0);
 
-      // Add a visible system message in the chat timeline
-      addMessage({ role: "assistant", text: `👋 ${msg}` });
+      addMessage({ role: "system", text: msg });
 
       const ut = userTypeRef.current;
 
@@ -450,7 +476,7 @@ export function useSession(opts: UseSessionOptions = {}) {
         status !== "listening" &&
         status !== "processing"
       ) {
-        const ttsMsg = `${name} is online and wants to join the room.`;
+        const ttsMsg = `${name} is online and wants to join the session.`;
         const utter = new SpeechSynthesisUtterance(ttsMsg);
         utter.rate = 0.95;
         window.speechSynthesis?.cancel();
@@ -459,20 +485,6 @@ export function useSession(opts: UseSessionOptions = {}) {
 
       setPeerJoinAlert({ name, sessionId: sid });
       showToast("info", `${name} is online and wants to chat`);
-    });
-
-    // ── AI interpretation sent to deaf/both peers ─────────────
-    ws.on("peer_ai_assist", (e) => {
-      const ut = userTypeRef.current;
-      // Only deaf / both users need this textual interpretation
-      if (ut !== "deaf" && ut !== "both") return;
-
-      const text = (e.text as string) || "";
-      if (!text) return;
-
-      addMessage({ role: "assistant", text });
-
-      applySpellPreviewForDeaf(text);
     });
 
     ws.on("sign_motion_plan", () => {
@@ -503,6 +515,7 @@ export function useSession(opts: UseSessionOptions = {}) {
     setPeerLeftAlert,
     setPeerJoinAlert,
     setReplyEmotionHint,
+    setRoomHasPeer,
     handleWSStatus,
   ]);
 

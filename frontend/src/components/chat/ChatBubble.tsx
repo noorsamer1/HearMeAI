@@ -7,7 +7,12 @@ import { clsx } from "clsx";
 import { ChatMessage } from "@/lib/state/sessionStore";
 import { useSessionStore } from "@/lib/state/sessionStore";
 import { useTranslations } from "@/lib/i18n";
-import { peerMoodHint, sentimentEmoji } from "@/lib/sentiment/sentimentDisplay";
+import {
+  peerMoodHint,
+  selfMoodHint,
+  sentimentEmoji,
+  SENTIMENT_CONFIDENCE_THRESHOLD,
+} from "@/lib/sentiment/sentimentDisplay";
 import { stripStageDirections } from "@/lib/text/stripStageDirections";
 import { showToast } from "@/components/common/Toast";
 import { base64ToAudioUrl, synthesizeSpeech } from "@/lib/api/client";
@@ -67,6 +72,7 @@ export function ChatBubble({ message, onAction }: ChatBubbleProps) {
   const t = useTranslations(language);
   const [copied, setCopied] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const isSystem = message.role === "system";
   const isAssistant = message.role === "assistant";
   const isActionResult = message.role === "action-result";
   const isAiType = isAssistant || isActionResult;
@@ -79,30 +85,48 @@ export function ChatBubble({ message, onAction }: ChatBubbleProps) {
     () => sentimentEmoji(message.sentimentLabel, message.sentimentScore),
     [message.sentimentLabel, message.sentimentScore]
   );
-  const peerMoodLine = useMemo(
-    () =>
-      message.fromPeer
-        ? peerMoodHint(
-            message.sentimentLabel,
-            message.sentimentScore,
-            message.sentimentSource,
-            t.chat
-          )
-        : null,
-    [
-      message.fromPeer,
-      message.sentimentLabel,
-      message.sentimentScore,
-      message.sentimentSource,
-      t.chat,
-    ]
-  );
-
   const isUser = message.role === "user";
   const isTranscript = message.role === "transcript";
   // Local user: typed messages and your own mic/STT transcript (not peer relay)
   const isSelf =
     !message.fromPeer && (isUser || isTranscript);
+
+  const moodLine = useMemo(() => {
+    if (message.fromPeer) {
+      return peerMoodHint(
+        message.sentimentLabel,
+        message.sentimentScore,
+        message.sentimentSource,
+        t.chat
+      );
+    }
+    if (isSelf) {
+      return selfMoodHint(
+        message.sentimentLabel,
+        message.sentimentScore,
+        message.sentimentSource,
+        t.chat
+      );
+    }
+    return null;
+  }, [
+    message.fromPeer,
+    message.sentimentLabel,
+    message.sentimentScore,
+    message.sentimentSource,
+    isSelf,
+    t.chat,
+  ]);
+
+  const canRunPeerActions =
+    !message.isPartial &&
+    !!message.fromPeer &&
+    (isUser || isTranscript) &&
+    message.text.trim().length > 0;
+
+  const showSentimentScore =
+    typeof message.sentimentScore === "number" &&
+    message.sentimentScore >= SENTIMENT_CONFIDENCE_THRESHOLD;
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(displayText);
@@ -135,6 +159,29 @@ export function ChatBubble({ message, onAction }: ChatBubbleProps) {
       setIsSpeaking(false);
     }
   };
+
+  if (isSystem) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2 }}
+        className="w-full flex justify-center py-2"
+        role="status"
+      >
+        <p
+          className="max-w-[min(100%,32rem)] rounded-full px-4 py-2 text-center text-xs leading-relaxed"
+          style={{
+            color: "var(--color-text-muted)",
+            border: "1px solid var(--color-border)",
+            background: "var(--color-surface)",
+          }}
+        >
+          {message.text}
+        </p>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
@@ -193,12 +240,20 @@ export function ChatBubble({ message, onAction }: ChatBubbleProps) {
               ? isTranscript
                 ? t.chat.transcript
                 : t.chat.you
-              : isUser && message.fromPeer
-                ? (message.senderName || "Peer")
-                : isTranscript
-                  ? t.chat.transcript
-                  : t.chat.assistant}
+              : isActionResult
+                ? t.chat.actionResult
+                : isUser && message.fromPeer
+                  ? (message.senderName || "Peer")
+                  : isTranscript
+                    ? t.chat.transcript
+                    : t.chat.assistant}
           </span>
+
+          {showSentimentScore && (
+            <span className="pill pill-violet text-[10px]">
+              {Math.round((message.sentimentScore ?? 0) * 100)}%
+            </span>
+          )}
 
           {isTranscript && message.confidence !== undefined && (
             <span className={clsx("pill text-[10px]", message.confidence > 0.85 ? "pill-green" : "pill-amber")}>
@@ -295,8 +350,8 @@ export function ChatBubble({ message, onAction }: ChatBubbleProps) {
             </span>
           )}
 
-          {/* AI action chips — inside bubble, below text */}
-          {!message.isPartial && isAiType && (
+          {/* Peer message tools: simplify / clarify / translate */}
+          {canRunPeerActions && (
             <div className="flex flex-wrap gap-1.5 mt-3 pt-3" style={{ borderTop: "1px solid var(--color-border)" }}>
               <button
                 type="button"
@@ -334,7 +389,7 @@ export function ChatBubble({ message, onAction }: ChatBubbleProps) {
           )}
         </div>
 
-        {peerMoodLine && (
+        {moodLine && (
           <p
             className={clsx(
               "mt-1.5 max-w-[min(100%,28rem)] text-[11px] leading-snug",
@@ -346,7 +401,7 @@ export function ChatBubble({ message, onAction }: ChatBubbleProps) {
             <span className="me-1" aria-hidden>
               {moodEmoji}
             </span>
-            {peerMoodLine}
+            {moodLine}
           </p>
         )}
 

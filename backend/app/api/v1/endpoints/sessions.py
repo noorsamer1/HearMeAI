@@ -74,6 +74,7 @@ def _message_to_out(m) -> MessageOut:
         content_text=m.content_text,
         created_at=m.created_at,
         sentiment_label=meta.sentiment_label if meta else None,
+        sentiment_score=meta.sentiment_score if meta else None,
         intent=meta.intent if meta else None,
         enhancement_text=meta.enhancement_text if meta else None,
     )
@@ -138,13 +139,17 @@ async def delete_session(
 ):
     """Permanently delete a session and all messages for every participant."""
     if not await session_crud.user_can_delete_session(db, session_id, user.id):
-        raise HTTPException(status_code=403, detail="Not allowed to delete this session")
+        raise HTTPException(
+            status_code=403,
+            detail="Not allowed to delete this session. You must be the creator or a participant.",
+        )
     room_key = str(session_id)
     await room_manager.evict_room(room_key)
     context_registry.delete(room_key)
     deleted = await session_crud.delete_session(db, session_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Session not found")
+    await db.commit()
 
 
 @router.delete("/purge-all", status_code=204)
