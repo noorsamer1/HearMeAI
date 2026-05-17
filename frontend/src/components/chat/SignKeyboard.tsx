@@ -7,52 +7,11 @@ import { clsx } from "clsx";
 import { useSessionStore } from "@/lib/state/sessionStore";
 import { signTranslate, getStoredToken } from "@/lib/api/client";
 import { showToast } from "@/components/common/Toast";
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Data
-// ─────────────────────────────────────────────────────────────────────────────
-
-const ASL_LETTER_EMOJI: Record<string, string> = {
-  A: "👊", B: "🖐", C: "🤏", D: "☝", E: "🤞", F: "👌",
-  G: "👈", H: "👉", I: "🤙", J: "🤙", K: "✌", L: "🤟",
-  M: "🤜", N: "🤛", O: "👌", P: "👇", Q: "👇", R: "🤞",
-  S: "✊", T: "👍", U: "✌", V: "✌", W: "🤟", X: "☝",
-  Y: "🤙", Z: "☝",
-};
-
-const ASL_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
-
-// ArSL (Arabic Sign Language) — 28 core letters with representative hand shapes
-const ARSL_LETTER_MAP: Record<string, { emoji: string; description: string }> = {
-  "ا": { emoji: "☝️", description: "Index up" },
-  "ب": { emoji: "🖐", description: "Palm flat" },
-  "ت": { emoji: "✌", description: "Two fingers" },
-  "ث": { emoji: "🤟", description: "Three open" },
-  "ج": { emoji: "🤞", description: "Cross fingers" },
-  "ح": { emoji: "🖖", description: "Split V" },
-  "خ": { emoji: "👋", description: "Wave out" },
-  "د": { emoji: "👆", description: "Point up" },
-  "ذ": { emoji: "👇", description: "Point down" },
-  "ر": { emoji: "👉", description: "Point right" },
-  "ز": { emoji: "👈", description: "Point left" },
-  "س": { emoji: "✊", description: "Closed fist" },
-  "ش": { emoji: "🤜", description: "Right fist" },
-  "ص": { emoji: "🤛", description: "Left fist" },
-  "ض": { emoji: "🤙", description: "Hang loose" },
-  "ط": { emoji: "👌", description: "OK shape" },
-  "ظ": { emoji: "🤚", description: "Stop palm" },
-  "ع": { emoji: "🤲", description: "Open palms" },
-  "غ": { emoji: "🙌", description: "Raised hands" },
-  "ف": { emoji: "🤏", description: "Pinch" },
-  "ق": { emoji: "👊", description: "Fist tap" },
-  "ك": { emoji: "🤚", description: "Flat stop" },
-  "ل": { emoji: "🤟", description: "Love hand" },
-  "م": { emoji: "👍", description: "Thumb up" },
-  "ن": { emoji: "👎", description: "Thumb down" },
-  "ه": { emoji: "🖐", description: "Five spread" },
-  "و": { emoji: "🤞", description: "Cross hope" },
-  "ي": { emoji: "🤙", description: "Shaka" },
-};
+import {
+  ARSL_LETTER_MAP,
+  ASL_LETTER_EMOJI,
+  ASL_LETTERS,
+} from "@/lib/sign/vocabulary";
 
 const ARSL_LETTERS = Object.keys(ARSL_LETTER_MAP);
 

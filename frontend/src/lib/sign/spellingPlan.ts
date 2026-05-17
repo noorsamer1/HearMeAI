@@ -1,10 +1,7 @@
-/** One step for 2D finger-spelling + word boundaries (used by SignLanguageWidget). */
+import { ASL_LETTER_EMOJI } from "@/lib/sign/vocabulary";
+import type { SpellStep } from "@/lib/sign/types";
 
-export interface SpellStep {
-  label: string;
-  durationMs: number;
-  description?: string;
-}
+export type { SpellStep } from "@/lib/sign/types";
 
 const WORD_BREAK_MS = 720;
 const LETTER_MS = 560;
@@ -39,6 +36,7 @@ export function buildSpellPlan(text: string, showSpacesBetweenLetters: boolean):
           label: u,
           durationMs: LETTER_MS,
           description: `Letter ${u}`,
+          emoji: ASL_LETTER_EMOJI[u],
         });
         letterIndexInWord += 1;
       } else if (/\d/.test(ch)) {

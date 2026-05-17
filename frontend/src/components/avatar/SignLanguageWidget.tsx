@@ -11,6 +11,7 @@ export interface MotionPose {
   label: string;
   durationMs: number;
   description?: string;
+  emoji?: string;
 }
 
 export interface MotionPlan {
@@ -266,7 +267,7 @@ export default function SignLanguageWidget({
               role="img"
               aria-label={current.label}
             >
-              {getPoseEmoji(current.label)}
+              {current.emoji ?? getPoseEmoji(current.label)}
             </span>
 
             {/* Label */}

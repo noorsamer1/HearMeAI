@@ -7,8 +7,13 @@ import { showToast } from "@/components/common/Toast";
 import type { UserType } from "@/lib/state/sessionStore";
 import { useSessionStore } from "@/lib/state/sessionStore";
 import { buildSpellPlan } from "@/lib/sign/spellingPlan";
+import {
+  buildArslSpellPlan,
+  inferSignPhraseKey,
+  isPrimarilyArabic,
+} from "@/lib/sign/vocabulary";
 
-/** Finger-spell plain text in the 2D signer (deaf / both profiles). */
+/** Finger-spell Latin text with ASL letter gestures (deaf / both). */
 function applySpellPreviewForDeaf(text: string, extras?: { assetUrl?: string }) {
   const showSp = useSessionStore.getState().signShowSpacesBetweenLetters;
   const spellPlan = buildSpellPlan(text, showSp);
@@ -19,6 +24,46 @@ function applySpellPreviewForDeaf(text: string, extras?: { assetUrl?: string }) 
     motionPlan: undefined,
     ...extras,
   });
+}
+
+/** ArSL finger-spelling with hand-shape emoji per letter. */
+function applyArslPreview(text: string, extras?: { assetUrl?: string }) {
+  const showSp = useSessionStore.getState().signShowSpacesBetweenLetters;
+  const spellPlan = buildArslSpellPlan(text, showSp);
+  useSessionStore.getState().setSignPreview({
+    phraseKey: text.slice(0, 140),
+    spellSourceText: text,
+    spellPlan,
+    motionPlan: undefined,
+    ...extras,
+  });
+}
+
+/** Update 2D/3D signer from AI output (peer actions, captions, solo AI). */
+function applySignPreviewFromAiText(text: string, userType: UserType | null | undefined) {
+  const trimmed = text.trim();
+  if (!trimmed) return;
+
+  // Arabic → same ArSL hand shapes as Sign keyboard (عربي tab), letter by letter.
+  if (isPrimarilyArabic(trimmed)) {
+    applyArslPreview(trimmed);
+    return;
+  }
+
+  const phraseKey = inferSignPhraseKey(trimmed);
+  if (phraseKey) {
+    useSessionStore.getState().setSignPreview({
+      phraseKey,
+      spellPlan: undefined,
+      spellSourceText: undefined,
+      motionPlan: undefined,
+    });
+    return;
+  }
+
+  if (userType === "deaf" || userType === "both") {
+    applySpellPreviewForDeaf(trimmed);
+  }
 }
 
 export interface UseSessionOptions {
@@ -32,39 +77,6 @@ export interface UseSessionOptions {
   userType?: UserType | null;
   /** Called when the session is permanently deleted (by you or a peer). */
   onSessionDeleted?: () => void;
-}
-
-function normalizeSignText(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function inferSignPhraseKey(value: string): string | null {
-  const text = normalizeSignText(value);
-  if (!text) return null;
-
-  const patterns: Array<{ phrase: string; variants: string[] }> = [
-    { phrase: "hello", variants: ["hello", "hi", "hey", "مرحبا", "اهلا", "أهلا"] },
-    { phrase: "thank you", variants: ["thank you", "thanks", "شكرا", "شكرًا"] },
-    { phrase: "how are you", variants: ["how are you", "how r you", "كيف حالك", "كيف حالكم"] },
-    { phrase: "help", variants: ["help", "ساعدني", "مساعدة"] },
-    { phrase: "yes", variants: ["yes", "نعم", "ايوه", "أيوه"] },
-    { phrase: "no", variants: ["no", "لا"] },
-    { phrase: "please", variants: ["please", "من فضلك", "لو سمحت"] },
-  ];
-
-  for (const { phrase, variants } of patterns) {
-    for (const variant of variants) {
-      const normalizedVariant = normalizeSignText(variant);
-      const pattern = new RegExp(`(^|\\s)${normalizedVariant.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s|$)`);
-      if (pattern.test(text)) return phrase;
-    }
-  }
-
-  return null;
 }
 
 export function useSession(opts: UseSessionOptions = {}) {
@@ -222,15 +234,7 @@ export function useSession(opts: UseSessionOptions = {}) {
           typeof e.sentimentScore === "number" ? (e.sentimentScore as number) : undefined,
         sentimentSource: (e.sentimentSource as string) || undefined,
       });
-      const ut = userTypeRef.current;
-      if (ut === "deaf" || ut === "both") {
-        applySpellPreviewForDeaf(transcriptText);
-      } else {
-        const phraseKey = inferSignPhraseKey(transcriptText);
-        if (phraseKey) {
-          setSignPreview({ phraseKey });
-        }
-      }
+      applySignPreviewFromAiText(transcriptText, userTypeRef.current);
       // Map server messageId → local message id for subsequent AI linking
       if (e.messageId) {
         pendingAiMessageId.current.set(e.messageId as string, id);
@@ -257,11 +261,18 @@ export function useSession(opts: UseSessionOptions = {}) {
         });
         pendingAiMessageId.current.set(msgId, localId);
         clearLiveResponse();
+        if (action && text.trim()) {
+          applySignPreviewFromAiText(text, userTypeRef.current);
+        }
         return;
       }
 
       const localId = pendingAiMessageId.current.get(msgId)!;
       updateMessage(localId, { text, isPartial: true, action, role });
+
+      if (action && text.trim()) {
+        applySignPreviewFromAiText(text, userTypeRef.current);
+      }
     });
 
     // ── AI final ─────────────────────────────────────────────
@@ -278,16 +289,7 @@ export function useSession(opts: UseSessionOptions = {}) {
       if (!action && !isSoloRoom()) return;
 
       const utAi = userTypeRef.current;
-      if (action) {
-        // Action results on peer text — no sign preview from utility output.
-      } else if (utAi === "deaf" || utAi === "both") {
-        applySpellPreviewForDeaf(aiText);
-      } else {
-        const phraseKey = inferSignPhraseKey(aiText);
-        if (phraseKey) {
-          setSignPreview({ phraseKey });
-        }
-      }
+      applySignPreviewFromAiText(aiText, utAi);
 
       if (pendingAiMessageId.current.has(msgId)) {
         const localId = pendingAiMessageId.current.get(msgId)!;
@@ -323,15 +325,7 @@ export function useSession(opts: UseSessionOptions = {}) {
       }
       const aiText = e.text as string;
       clearLiveResponse();
-      const utResp = userTypeRef.current;
-      if (utResp === "deaf" || utResp === "both") {
-        applySpellPreviewForDeaf(aiText);
-      } else {
-        const phraseKey = inferSignPhraseKey(aiText);
-        if (phraseKey) {
-          setSignPreview({ phraseKey });
-        }
-      }
+      applySignPreviewFromAiText(aiText, userTypeRef.current);
       addMessage({
         role: "assistant",
         text: aiText,
@@ -387,10 +381,7 @@ export function useSession(opts: UseSessionOptions = {}) {
       const text = (e.text as string) || "";
       if (!text) return;
 
-      const ut = userTypeRef.current;
-      if (ut === "deaf" || ut === "both") {
-        applySpellPreviewForDeaf(text);
-      }
+      applySignPreviewFromAiText(text, userTypeRef.current);
 
       const localId = addMessage({
         role: kind === "transcript" ? "transcript" : "user",
@@ -530,15 +521,7 @@ export function useSession(opts: UseSessionOptions = {}) {
   const sendText = useCallback(
     (text: string, requestTTS = false) => {
       setReplyEmotionHint(null);
-      const ut = userTypeRef.current;
-      if (ut === "deaf" || ut === "both") {
-        applySpellPreviewForDeaf(text);
-      } else {
-        const phraseKey = inferSignPhraseKey(text);
-        if (phraseKey) {
-          setSignPreview({ phraseKey });
-        }
-      }
+      applySignPreviewFromAiText(text, userTypeRef.current);
       const { manualMood } = useSessionStore.getState();
       wsRef.current?.sendText(
         text,
