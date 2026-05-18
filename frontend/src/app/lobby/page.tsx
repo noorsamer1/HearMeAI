@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { getStoredToken } from "@/lib/api/client";
 import { fetchMe, logoutAccount } from "@/lib/api/authApi";
+import { useSessionStore } from "@/lib/state/sessionStore";
 import { createSession, joinSessionByCode, matchEnqueue, matchPoll } from "@/lib/api/sessionApi";
 import {
   hasRecentSessions,
@@ -80,6 +81,7 @@ export default function LobbyPage() {
     setProfileLoading(true);
     fetchMe(t)
       .then((u) => {
+        useSessionStore.getState().applyAccountLocale(u.locale);
         setDisplayName(u.display_name);
         setUserType(u.user_type);
         const completed = window.localStorage.getItem(ONBOARDING_KEY) === "1";

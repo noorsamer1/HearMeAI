@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     app_name: str = "AI Communication Assistant"
     app_version: str = "1.0.0"
     debug: bool = False
+    # Log every SQL statement (noisy); independent of DEBUG.
+    sql_echo: bool = False
 
     # OpenRouter (LLM)
     openrouter_api_key: str = ""
@@ -23,6 +25,14 @@ class Settings(BaseSettings):
     # "openai"          → Whisper direct OpenAI API  (requires OPENAI_API_KEY)
     stt_provider: str = "openrouter"
     stt_model: str = "openai/whisper-1"
+    # Optional Whisper prompt (vocabulary / style hint). Empty = built-in default.
+    stt_prompt: str = ""
+    # When auto STT returns Arabic script, optionally re-run with a second model
+    # if the transcript looks like a phonetic mis-hear (dialect / شو / كيف).
+    stt_arabic_refine_enabled: bool = True
+    stt_arabic_refine_model: str = "openai/gpt-4o-mini-transcribe"
+    # Drop gibberish STT (Icelandic hallucinations, etc.) instead of showing in chat.
+    stt_reject_hallucinations: bool = True
     # Interim STT on concatenated WS chunks is unsafe for WebM; keep off until
     # segment-based live mode ships.
     stt_interim_chunk_enabled: bool = False

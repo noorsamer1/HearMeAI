@@ -22,7 +22,7 @@ from app.db.session import get_session_factory, init_db
 from app.services.ws_redis import start_redis_ws_listener, stop_redis_ws_listener
 
 settings = get_settings()
-configure_logging(debug=settings.debug)
+configure_logging(debug=settings.debug, sql_echo=settings.sql_echo)
 logger = get_logger(__name__)
 
 

@@ -604,11 +604,14 @@ export function useSession(opts: UseSessionOptions = {}) {
       const camera = getLiveCameraSentiment();
       setManualMood(null);
 
+      // STT language is independent of UI layout — detect spoken language (ar/en).
+      const sttLang = "auto";
+
       const ws = wsRef.current;
       if (ws?.isOpen()) {
         try {
           const data = await blobToBase64(blob);
-          ws.sendAudioEnd(lang, camera, manualMood, {
+          ws.sendAudioEnd(sttLang, camera, manualMood, {
             data,
             mimeType: _mimeType || blob.type || "audio/webm",
           });
@@ -619,7 +622,7 @@ export function useSession(opts: UseSessionOptions = {}) {
       }
 
       try {
-        await transcribeViaRest(blob, lang);
+        await transcribeViaRest(blob, sttLang);
         lastMicRecordingRef.current = null;
       } catch (restErr) {
         console.error("[STT] REST fallback failed", restErr);

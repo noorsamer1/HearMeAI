@@ -104,6 +104,8 @@ interface SessionState {
   setSystemStatus: (status: SystemStatus) => void;
   setIsConnected: (connected: boolean) => void;
   setLanguage: (lang: Language) => void;
+  /** Align UI + STT language with account locale from /users/me (ar or en). */
+  applyAccountLocale: (locale: string) => void;
   setIsHighContrast: (value: boolean) => void;
   setColorMode: (mode: ColorMode) => void;
   setFontSize: (size: FontSize) => void;
@@ -186,6 +188,11 @@ export const useSessionStore = create<SessionState>()(
       setSystemStatus: (status) => set({ systemStatus: status }),
       setIsConnected: (connected) => set({ isConnected: connected }),
       setLanguage: (lang) => set({ language: lang }),
+      applyAccountLocale: (locale) => {
+        const code = locale.trim().toLowerCase();
+        const lang: Language = code.startsWith("ar") ? "ar" : "en";
+        set({ language: lang });
+      },
       setIsHighContrast: (value) => set({ isHighContrast: value }),
       setColorMode: (colorMode) => set({ colorMode }),
       setFontSize: (size) => set({ fontSize: size }),

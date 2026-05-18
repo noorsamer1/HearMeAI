@@ -73,6 +73,7 @@ export default function SessionsWorkspacePage({ initialSessionId = null }: Sessi
     setToken(t);
     fetchMe(t)
       .then(async (u) => {
+        useSessionStore.getState().applyAccountLocale(u.locale);
         const resolved = (u.user_type as UserType) || "deaf";
         setUserType(resolved);
         setCurrentUserId(u.id);

@@ -16,13 +16,16 @@ _CLASSIFIER_SYSTEM = (
     '"emotion" (one of: happy, sad, angry, neutral, anxious), '
     '"intent" (one of: question, statement, urgent, other), '
     '"urgency" (one of: low, medium, high), '
-    '"confidence" (number 0-1).'
+    '"confidence" (number 0-1). '
+    "Classify the user text as given — do not translate or rewrite it."
 )
 
 _ENHANCER_SYSTEM = (
     "Rewrite the user's message for deaf-friendly clarity: short sentences, plain words, "
     "neutral supportive tone, no sarcasm, no idioms. If meaning is uncertain, prefix with "
-    '"Maybe: ". Output only the rewritten text, no preamble. Match the language of the original. '
+    '"Maybe: ". Output only the rewritten text, no preamble. '
+    "Never translate: if locale is ar, output must stay in Arabic script; "
+    "if locale is en, stay in English. "
     "Never use asterisk-wrapped stage directions (for example *nods politely*)."
 )
 

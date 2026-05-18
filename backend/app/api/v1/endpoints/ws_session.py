@@ -40,7 +40,7 @@ from app.services.language_detector import compute_readability_score, detect_lan
 from app.services.openrouter_client import get_llm_client
 from app.services.sign_phrase_service import best_sign_suggestion
 from app.services.audio_convert import AudioConversionError, hex_prefix, normalize_mime_type
-from app.services.stt_service import get_stt_service
+from app.services.stt_service import get_stt_service, normalize_language_hint
 from app.services.tts_service import get_tts_service
 from app.services.ws_redis import broadcast_fanout
 
@@ -499,6 +499,7 @@ async def websocket_session(
     user_uuid: UUID | None = None
     user_key = str(uuid4())  # unique key for anonymous users
     user_display_name: str = "Peer"
+    user_profile_locale: str = "en"
 
     if token:
         try:
@@ -516,6 +517,7 @@ async def websocket_session(
                 user_obj = await user_crud.get_user_by_id(db, user_uuid)
                 if user_obj:
                     user_display_name = user_obj.display_name
+                    user_profile_locale = (user_obj.locale or "en")[:2].lower()
                 await db.commit()
             if not ok:
                 await websocket.close(code=4403)
@@ -764,7 +766,7 @@ async def websocket_session(
             await finish_audio_capture("idle")
             return
 
-        logger.info(
+        logger.debug(
             "WS STT utterance",
             session_id=session_id,
             mime_type=mime_for_stt,
@@ -773,9 +775,12 @@ async def websocket_session(
         )
 
         try:
+            # "auto" → no Whisper language lock (spoken language may differ from UI).
+            resolved_lang = normalize_language_hint(lang_hint)
+
             result = await stt.transcribe(
                 audio_data=audio_data,
-                language_hint=None if lang_hint in (None, "auto") else lang_hint,
+                language_hint=resolved_lang,
                 mime_type=mime_for_stt,
             )
         except AudioConversionError as exc:

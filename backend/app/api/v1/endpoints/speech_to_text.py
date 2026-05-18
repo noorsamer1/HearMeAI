@@ -56,7 +56,7 @@ async def speech_to_text(
             detail="Audio data is too short or empty",
         )
 
-    logger.info(
+    logger.debug(
         "REST STT upload",
         mime_type=mime_type,
         input_bytes=len(audio_bytes),

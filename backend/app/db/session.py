@@ -18,7 +18,7 @@ def get_engine():
             raise RuntimeError("DATABASE_URL is not configured.")
         _engine = create_async_engine(
             settings.database_url,
-            echo=settings.debug,
+            echo=settings.sql_echo,
             pool_pre_ping=True,
         )
     return _engine

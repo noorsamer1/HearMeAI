@@ -75,7 +75,7 @@ def convert_to_wav_sync(audio_data: bytes, source_mime: str) -> tuple[bytes, str
         raise AudioConversionError("Audio data is too short or empty")
 
     normalized = normalize_mime_type(source_mime)
-    logger.info(
+    logger.debug(
         "STT audio convert start",
         source_mime=source_mime,
         normalized_mime=normalized,
@@ -145,7 +145,7 @@ def convert_to_wav_sync(audio_data: bytes, source_mime: str) -> tuple[bytes, str
             raise AudioConversionError("FFmpeg produced empty WAV output")
 
         _validate_wav(out_bytes)
-        logger.info(
+        logger.debug(
             "STT audio convert ok",
             source_mime=normalized,
             output_bytes=len(out_bytes),

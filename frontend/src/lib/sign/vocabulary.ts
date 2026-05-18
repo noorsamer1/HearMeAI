@@ -36,7 +36,11 @@ export const ASL_LETTER_EMOJI: Record<string, string> = {
 
 export const ASL_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
-/** ArSL finger-spelling hand shapes (one gesture per Arabic letter). */
+/**
+ * Arabic keyboard: one emoji + tooltip per letter (manual UX map).
+ * Design ref: AI-Media ArSL fingerspelling chart (see docs/SIGN_KEYBOARD_EMOJI_MAPPING.md §2.4).
+ * Not imported from KArSL/ArabSign video datasets.
+ */
 export const ARSL_LETTER_MAP: Record<string, { emoji: string; description: string }> = {
   ا: { emoji: "☝️", description: "Index up" },
   ب: { emoji: "🖐", description: "Palm flat" },
