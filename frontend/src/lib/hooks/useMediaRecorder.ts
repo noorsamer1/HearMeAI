@@ -4,9 +4,25 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 export type RecordingState = "inactive" | "recording" | "error";
 
+/** Minimum blob size before upload (aligned with backend chunk gate). */
+export const MIN_AUDIO_BYTES = 1000;
+
+export function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve(result.split(",")[1] ?? "");
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("read failed"));
+    reader.readAsDataURL(blob);
+  });
+}
+
 interface UseMediaRecorderOptions {
+  /** Legacy streaming mode — not used for session mic (invalid WebM concat). */
   onChunk?: (base64: string, mimeType: string) => void;
-  onStop?: (blob?: Blob) => void;  // blob is undefined in streaming (onChunk) mode
+  onStop?: (blob: Blob | null, mimeType: string, durationMs: number) => void;
   chunkIntervalMs?: number;
   silenceThreshold?: number;
   silenceTimeoutMs?: number;
@@ -19,18 +35,6 @@ interface UseMediaRecorderReturn {
   stop: () => void;
   volumeLevel: number;
   hasPermission: boolean | null;
-}
-
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      resolve(result.split(",")[1]);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
 }
 
 export function useMediaRecorder({
@@ -51,6 +55,7 @@ export function useMediaRecorder({
   const animFrameRef = useRef<number>(0);
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mimeTypeRef = useRef<string>("audio/webm;codecs=opus");
+  const recordingStartedAtRef = useRef<number>(0);
 
   const getSupportedMimeType = (): string => {
     const types = [
@@ -72,7 +77,9 @@ export function useMediaRecorder({
     const dataArray = new Float32Array(analyser.fftSize);
     analyser.getFloatTimeDomainData(dataArray);
 
-    const rms = Math.sqrt(dataArray.reduce((sum, v) => sum + v * v, 0) / dataArray.length);
+    const rms = Math.sqrt(
+      dataArray.reduce((sum, v) => sum + v * v, 0) / dataArray.length
+    );
     setVolumeLevel(Math.min(1, rms * 5));
 
     if (rms < silenceThreshold) {
@@ -81,11 +88,9 @@ export function useMediaRecorder({
           // Silence detected — caller can use this to auto-stop
         }, silenceTimeoutMs);
       }
-    } else {
-      if (silenceTimerRef.current) {
-        clearTimeout(silenceTimerRef.current);
-        silenceTimerRef.current = null;
-      }
+    } else if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
     }
 
     animFrameRef.current = requestAnimationFrame(measureVolume);
@@ -106,7 +111,6 @@ export function useMediaRecorder({
       setHasPermission(true);
       streamRef.current = stream;
 
-      // Set up analyser for volume visualization
       const audioCtx = new AudioContext();
       const source = audioCtx.createMediaStreamSource(stream);
       const analyser = audioCtx.createAnalyser();
@@ -120,15 +124,29 @@ export function useMediaRecorder({
       });
 
       const chunks: Blob[] = [];
+      const streamingMode = Boolean(onChunk);
 
-      recorder.ondataavailable = async (e) => {
-        if (e.data.size > 0) {
-          if (onChunk) {
-            const b64 = await blobToBase64(e.data);
-            onChunk(b64, mimeTypeRef.current);
+      recorder.ondataavailable = (e) => {
+        if (e.data.size <= 0) return;
+        try {
+          if (streamingMode && onChunk) {
+            void (async () => {
+              try {
+                const b64 = await blobToBase64(e.data);
+                onChunk(b64, mimeTypeRef.current);
+              } catch (chunkErr) {
+                console.error("[MediaRecorder] chunk encode failed", chunkErr);
+                setError("Recording failed");
+                setState("error");
+              }
+            })();
           } else {
             chunks.push(e.data);
           }
+        } catch (err) {
+          console.error("[MediaRecorder] ondataavailable", err);
+          setError("Recording failed");
+          setState("error");
         }
       };
 
@@ -136,16 +154,36 @@ export function useMediaRecorder({
         setVolumeLevel(0);
         setState("inactive");
         if (!onStop) return;
-        if (chunks.length > 0) {
-          // Batch mode: all audio collected locally, deliver as one blob
-          onStop(new Blob(chunks, { type: mimeTypeRef.current }));
-        } else {
-          // Streaming mode: chunks were sent via onChunk in real time.
-          // Call onStop with no blob so the caller can signal audio_end to the server.
-          onStop(undefined);
+
+        const durationMs = Math.max(
+          0,
+          Date.now() - recordingStartedAtRef.current
+        );
+        const mime = mimeTypeRef.current || "audio/webm";
+
+        if (streamingMode) {
+          onStop(null, mime, durationMs);
+          return;
         }
+
+        const finalBlob = new Blob(chunks, { type: mime });
+        if (process.env.NODE_ENV !== "production") {
+          console.info("[MediaRecorder] final blob", {
+            type: finalBlob.type,
+            size: finalBlob.size,
+            durationMs,
+          });
+        }
+
+        if (finalBlob.size < MIN_AUDIO_BYTES) {
+          onStop(null, mime, durationMs);
+          return;
+        }
+
+        onStop(finalBlob, mime, durationMs);
       };
 
+      recordingStartedAtRef.current = Date.now();
       recorder.start(chunkIntervalMs);
       mediaRecorderRef.current = recorder;
       setState("recording");

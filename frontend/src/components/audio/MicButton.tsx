@@ -11,22 +11,23 @@ import { useTranslations } from "@/lib/i18n";
 import { useSessionStore } from "@/lib/state/sessionStore";
 
 interface MicButtonProps {
-  onChunk: (base64: string, mimeType: string) => void;
-  onStop: () => void;
+  onAudioStop: (blob: Blob | null, mimeType: string, durationMs: number) => void;
   disabled?: boolean;
 }
 
-export function MicButton({ onChunk, onStop, disabled }: MicButtonProps) {
+export function MicButton({ onAudioStop, disabled }: MicButtonProps) {
   const { language } = useSessionStore();
   const t = useTranslations(language);
 
-  const handleStop = useCallback(() => {
-    onStop();
-  }, [onStop]);
+  const handleRecorderStop = useCallback(
+    (blob: Blob | null, mimeType: string, durationMs: number) => {
+      onAudioStop(blob, mimeType, durationMs);
+    },
+    [onAudioStop]
+  );
 
   const { state, error, start, stop, volumeLevel, hasPermission } = useMediaRecorder({
-    onChunk,
-    onStop: handleStop,
+    onStop: handleRecorderStop,
     chunkIntervalMs: 250,
   });
 
@@ -45,8 +46,7 @@ export function MicButton({ onChunk, onStop, disabled }: MicButtonProps) {
   }, [isRecording, stop, start, hasPermission, t.errors.micPermission]);
 
   return (
-    <div className="flex flex-col items-center gap-2">
-      {/* Waveform */}
+    <motion.div className="flex flex-col items-center gap-2">
       <AnimatePresence>
         {isRecording && (
           <motion.div
@@ -65,9 +65,7 @@ export function MicButton({ onChunk, onStop, disabled }: MicButtonProps) {
         )}
       </AnimatePresence>
 
-      {/* Main mic button */}
-      <div className="relative">
-        {/* Pulse ring when recording */}
+      <motion.div className="relative">
         {isRecording && (
           <>
             <motion.div
@@ -98,7 +96,7 @@ export function MicButton({ onChunk, onStop, disabled }: MicButtonProps) {
               ? "bg-[var(--color-brand-600)] shadow-lg shadow-[var(--shadow-brand)] hover:bg-[var(--color-brand-500)]"
               : "bg-surface-overlay border border-[var(--color-border-strong)] hover:bg-surface-raised hover:border-[color-mix(in_srgb,var(--color-brand)_35%,transparent)]",
             state === "error" &&
-              "bg-[var(--color-error-muted)] border-[color-mix(in_srgb,var(--color-error)_40%,transparent)]",
+              "bg-[var(--color-error-muted)] border-[color-mix(in_srgb,var(--color-error)_40%,transparent)]"
           )}
         >
           <AnimatePresence mode="wait">
@@ -132,16 +130,15 @@ export function MicButton({ onChunk, onStop, disabled }: MicButtonProps) {
             )}
           </AnimatePresence>
         </motion.button>
-      </div>
+      </motion.div>
 
-      {/* Label */}
       <span className="text-xs text-[var(--color-text-muted)] text-center">
         {state === "error"
           ? "Mic unavailable"
           : isRecording
-          ? t.controls.stopListening
-          : t.controls.startListening}
+            ? t.controls.stopListening
+            : t.controls.startListening}
       </span>
-    </div>
+    </motion.div>
   );
 }

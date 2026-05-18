@@ -39,6 +39,7 @@ from app.services.context_manager import context_registry
 from app.services.language_detector import compute_readability_score, detect_language, normalize_text
 from app.services.openrouter_client import get_llm_client
 from app.services.sign_phrase_service import best_sign_suggestion
+from app.services.audio_convert import AudioConversionError, hex_prefix, normalize_mime_type
 from app.services.stt_service import get_stt_service
 from app.services.tts_service import get_tts_service
 from app.services.ws_redis import broadcast_fanout
@@ -742,23 +743,58 @@ async def websocket_session(
     async def handle_audio_end(
         lang_hint: str | None,
         *,
+        audio_data_override: bytes | None = None,
+        mime_override: str | None = None,
         camera_label: str | None = None,
         camera_confidence: float | None = None,
         manual_mood_label: str | None = None,
     ):
-        if not audio_buffer:
+        if audio_data_override is not None:
+            audio_data = audio_data_override
+            mime_for_stt = normalize_mime_type(mime_override or audio_mime)
+        elif audio_buffer:
+            audio_data = bytes(audio_buffer)
+            audio_buffer.clear()
+            mime_for_stt = normalize_mime_type(audio_mime)
+        else:
             await finish_audio_capture("idle")
             return
 
-        audio_data = bytes(audio_buffer)
-        audio_buffer.clear()
+        if len(audio_data) < 100:
+            await finish_audio_capture("idle")
+            return
+
+        logger.info(
+            "WS STT utterance",
+            session_id=session_id,
+            mime_type=mime_for_stt,
+            input_bytes=len(audio_data),
+            input_hex_prefix=hex_prefix(audio_data),
+        )
 
         try:
             result = await stt.transcribe(
                 audio_data=audio_data,
                 language_hint=None if lang_hint in (None, "auto") else lang_hint,
-                mime_type=audio_mime,
+                mime_type=mime_for_stt,
             )
+        except AudioConversionError as exc:
+            logger.error(
+                "STT audio conversion failed",
+                session_id=session_id,
+                error=str(exc),
+            )
+            detail = str(exc).strip()[:240] or "audio_conversion_failed"
+            await send(
+                {
+                    "type": "error",
+                    "message": "Transcription failed",
+                    "code": "stt_error",
+                    "detail": detail,
+                }
+            )
+            await finish_audio_capture("idle")
+            return
         except Exception as exc:
             logger.error("STT failed", session_id=session_id, error=str(exc))
             detail = str(exc).strip()[:240] or "unknown_error"
@@ -1198,13 +1234,18 @@ async def websocket_session(
                 if not listening_status_sent:
                     listening_status_sent = True
                     await set_status("listening")
-                if chunk_byte_count >= CHUNK_THRESHOLD_BYTES:
+                if (
+                    settings.stt_interim_chunk_enabled
+                    and chunk_byte_count >= CHUNK_THRESHOLD_BYTES
+                ):
                     lang_hint_interim = event.get("lang", "auto")
                     buffer_snapshot = bytes(audio_buffer)
                     chunk_byte_count = 0
                     try:
                         interim_result = await stt.transcribe_chunk(
-                            buffer_snapshot, language=lang_hint_interim, mime_type=audio_mime
+                            buffer_snapshot,
+                            language=lang_hint_interim,
+                            mime_type=audio_mime,
                         )
                         if interim_result and interim_result.text:
                             await broadcast_fanout(
@@ -1218,7 +1259,9 @@ async def websocket_session(
                                 exclude_user_key=None,
                             )
                     except Exception as exc:
-                        logger.warning("Interim STT failed", session_id=session_id, error=str(exc))
+                        logger.warning(
+                            "Interim STT failed", session_id=session_id, error=str(exc)
+                        )
 
             elif event_type == "audio_end":
                 lang = event.get("lang", "auto")
@@ -1227,9 +1270,33 @@ async def websocket_session(
                 listening_status_sent = False
                 await set_status("processing")
                 manual_mood, cam_label, cam_conf = _mood_inputs_from_event(event)
+                batch_b64 = event.get("data", "")
+                batch_mime = event.get("mimeType")
+                audio_override: bytes | None = None
+                if batch_b64:
+                    audio_buffer.clear()
+                    try:
+                        audio_override = base64.b64decode(batch_b64)
+                    except Exception as decode_exc:
+                        logger.warning(
+                            "audio_end base64 decode failed",
+                            session_id=session_id,
+                            error=str(decode_exc),
+                        )
+                        await send(
+                            {
+                                "type": "error",
+                                "message": "Invalid audio payload",
+                                "code": "audio_error",
+                            }
+                        )
+                        await finish_audio_capture("idle")
+                        continue
                 try:
                     await handle_audio_end(
                         lang,
+                        audio_data_override=audio_override,
+                        mime_override=batch_mime,
                         camera_label=cam_label,
                         camera_confidence=cam_conf,
                         manual_mood_label=manual_mood,

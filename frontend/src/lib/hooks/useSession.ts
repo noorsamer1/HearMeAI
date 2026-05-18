@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { SessionWebSocket, WSStatus } from "@/lib/api/websocket";
-import { base64ToAudioUrl } from "@/lib/api/client";
+import { base64ToAudioUrl, getStoredToken, transcribeAudio } from "@/lib/api/client";
+import { blobToBase64 } from "@/lib/hooks/useMediaRecorder";
+import { t as translate } from "@/lib/i18n";
 import { showToast } from "@/components/common/Toast";
 import type { UserType } from "@/lib/state/sessionStore";
 import { useSessionStore } from "@/lib/state/sessionStore";
@@ -86,6 +88,10 @@ export function useSession(opts: UseSessionOptions = {}) {
     onSessionDeletedRef.current = onSessionDeleted;
   }, [onSessionDeleted]);
   const wsRef = useRef<SessionWebSocket | null>(null);
+  const lastMicRecordingRef = useRef<{ blob: Blob; mimeType: string } | null>(null);
+  const transcribeViaRestRef = useRef<
+    (blob: Blob, lang: string) => Promise<void>
+  >(async () => {});
   const pendingAiMessageId = useRef<Map<string, string>>(new Map());
   /** Server AI message IDs already finalized via ai_final (skip duplicate ai_response). */
   const completedAiServerIds = useRef<Set<string>>(new Set());
@@ -221,6 +227,7 @@ export function useSession(opts: UseSessionOptions = {}) {
     });
 
     ws.on("transcript_final", (e) => {
+      lastMicRecordingRef.current = null;
       setLiveCaption("");
       setSystemStatus("idle");
       const transcriptText = e.text as string;
@@ -367,10 +374,21 @@ export function useSession(opts: UseSessionOptions = {}) {
       console.error("[WS error]", msg, code, e.detail);
       setSystemStatus("idle");
       if (code === "stt_error") {
-        showToast(
-          "error",
-          "Speech recognition failed. Try speaking again or check your microphone."
-        );
+        const pending = lastMicRecordingRef.current;
+        lastMicRecordingRef.current = null;
+        const lang = useSessionStore.getState().language;
+        if (pending) {
+          void transcribeViaRestRef.current(pending.blob, lang).catch((restErr) => {
+            console.error("[STT] REST retry after stt_error failed", restErr);
+            showToast("error", translate(lang, "errors.transcriptionFailed"));
+            setSystemStatus("idle");
+          });
+          return;
+        }
+        showToast("error", translate(lang, "errors.transcriptionFailed"));
+      } else if (code === "audio_error") {
+        const lang = useSessionStore.getState().language;
+        showToast("error", translate(lang, "errors.transcriptionFailed"));
       } else {
         showToast("error", `Error: ${msg}`);
       }
@@ -534,17 +552,89 @@ export function useSession(opts: UseSessionOptions = {}) {
     [language, setSignPreview, getLiveCameraSentiment, setReplyEmotionHint]
   );
 
-  const sendAudioChunk = useCallback((base64: string, mimeType: string) => {
-    wsRef.current?.sendAudioChunk(base64, mimeType);
-  }, []);
+  const applyLocalTranscript = useCallback(
+    (transcriptText: string, confidence: number, detectedLang: string) => {
+      setLiveCaption("");
+      setSystemStatus("idle");
+      const id = addMessage({
+        role: "transcript",
+        text: transcriptText,
+        confidence,
+        detectedLang,
+      });
+      applySignPreviewFromAiText(transcriptText, userTypeRef.current);
+      return id;
+    },
+    [addMessage, setLiveCaption, setSystemStatus]
+  );
 
-  const sendAudioEnd = useCallback(() => {
-    setReplyEmotionHint(null);
-    setSystemStatus("processing");
-    const { language: lang, manualMood, setManualMood } = useSessionStore.getState();
-    wsRef.current?.sendAudioEnd(lang, getLiveCameraSentiment(), manualMood);
-    setManualMood(null);
-  }, [getLiveCameraSentiment, setReplyEmotionHint, setSystemStatus]);
+  const transcribeViaRest = useCallback(
+    async (blob: Blob, lang: string) => {
+      const languageHint = lang === "auto" ? "auto" : lang;
+      const result = await transcribeAudio(blob, languageHint, getStoredToken());
+      const text = (result.text || "").trim();
+      if (!text) {
+        setSystemStatus("idle");
+        return;
+      }
+      applyLocalTranscript(
+        text,
+        result.confidence,
+        result.detected_language || lang
+      );
+    },
+    [applyLocalTranscript, setSystemStatus]
+  );
+
+  transcribeViaRestRef.current = transcribeViaRest;
+
+  const sendAudioEnd = useCallback(
+    async (blob: Blob | null, _mimeType: string, _durationMs: number) => {
+      setReplyEmotionHint(null);
+      const { language: lang, manualMood, setManualMood } = useSessionStore.getState();
+
+      if (!blob || blob.size < 1000) {
+        showToast("error", translate(lang, "errors.transcriptionFailed"));
+        setSystemStatus("idle");
+        return;
+      }
+
+      lastMicRecordingRef.current = { blob, mimeType: _mimeType };
+      setSystemStatus("processing");
+      const camera = getLiveCameraSentiment();
+      setManualMood(null);
+
+      const ws = wsRef.current;
+      if (ws?.isOpen()) {
+        try {
+          const data = await blobToBase64(blob);
+          ws.sendAudioEnd(lang, camera, manualMood, {
+            data,
+            mimeType: _mimeType || blob.type || "audio/webm",
+          });
+          return;
+        } catch (encodeErr) {
+          console.error("[STT] base64 encode failed", encodeErr);
+        }
+      }
+
+      try {
+        await transcribeViaRest(blob, lang);
+        lastMicRecordingRef.current = null;
+      } catch (restErr) {
+        console.error("[STT] REST fallback failed", restErr);
+        showToast("error", translate(lang, "errors.transcriptionFailed"));
+        setSystemStatus("idle");
+        lastMicRecordingRef.current = null;
+      }
+    },
+    [
+      getLiveCameraSentiment,
+      setReplyEmotionHint,
+      setSystemStatus,
+      transcribeViaRest,
+    ]
+  );
 
   const sendAction = useCallback(
     (action: "simplify" | "clarify" | "translate", text: string, messageId: string) => {
@@ -556,7 +646,6 @@ export function useSession(opts: UseSessionOptions = {}) {
 
   return {
     sendText,
-    sendAudioChunk,
     sendAudioEnd,
     sendAction,
     ws: wsRef,

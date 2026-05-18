@@ -15,14 +15,12 @@ type UserType = "deaf" | "mute" | "both" | "normal";
 
 interface ControlDockProps {
   onSendText: (text: string, requestTTS: boolean) => void;
-  onAudioChunk: (base64: string, mimeType: string) => void;
-  onAudioStop: () => void;
+  onAudioStop: (blob: Blob | null, mimeType: string, durationMs: number) => void;
   userType?: UserType;
 }
 
 export function ControlDock({
   onSendText,
-  onAudioChunk,
   onAudioStop,
   userType = "deaf",
 }: ControlDockProps) {
@@ -106,7 +104,7 @@ export function ControlDock({
           {/* Mic — normal + deaf for voice input; mute/both use text/sign keyboard */}
           {canSpeak && (
             <div className="flex-shrink-0 pb-0.5">
-              <MicButton onChunk={onAudioChunk} onStop={onAudioStop} />
+              <MicButton onAudioStop={onAudioStop} />
             </div>
           )}
 

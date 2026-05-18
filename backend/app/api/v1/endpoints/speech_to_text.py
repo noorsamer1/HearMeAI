@@ -6,6 +6,7 @@ from app.core.config import get_settings
 from app.core.logging_config import get_logger
 from app.core.rate_limit import limiter
 from app.schemas.speech import TranscriptResponse
+from app.services.audio_convert import AudioConversionError, hex_prefix, normalize_mime_type
 from app.services.stt_service import STTService, get_stt_service
 
 router = APIRouter()
@@ -34,7 +35,7 @@ async def speech_to_text(
         "audio/ogg", "audio/flac", "application/octet-stream",
     }
 
-    mime_type = audio.content_type or "audio/webm"
+    mime_type = normalize_mime_type(audio.content_type or "audio/webm")
     if mime_type not in allowed_types:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
@@ -55,11 +56,23 @@ async def speech_to_text(
             detail="Audio data is too short or empty",
         )
 
+    logger.info(
+        "REST STT upload",
+        mime_type=mime_type,
+        input_bytes=len(audio_bytes),
+        input_hex_prefix=hex_prefix(audio_bytes),
+    )
+
     try:
         result = await stt.transcribe(
             audio_data=audio_bytes,
             language_hint=None if language == "auto" else language,
             mime_type=mime_type,
+        )
+    except AudioConversionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))

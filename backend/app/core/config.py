@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     # "openai"          → Whisper direct OpenAI API  (requires OPENAI_API_KEY)
     stt_provider: str = "openrouter"
     stt_model: str = "openai/whisper-1"
+    # Interim STT on concatenated WS chunks is unsafe for WebM; keep off until
+    # segment-based live mode ships.
+    stt_interim_chunk_enabled: bool = False
 
     # ── TTS (Text-to-Speech) ──────────────────────────────────
     # "edge"            → Microsoft Edge TTS  (free, no key needed)

@@ -22,16 +22,20 @@ Supports three providers (set STT_PROVIDER in .env):
 import asyncio
 import base64
 import io
-import subprocess
 import time
 from dataclasses import dataclass
 
-import imageio_ffmpeg
 from openai import AsyncOpenAI
 
 from app.core.config import get_settings
 from app.core.logging_config import get_logger
 from app.core.metrics import metrics
+from app.services.audio_convert import (
+    AudioConversionError,
+    MIN_AUDIO_BYTES,
+    convert_to_wav,
+    normalize_mime_type,
+)
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -49,7 +53,6 @@ class TranscriptResult:
 class STTService:
     def __init__(self) -> None:
         self._client: AsyncOpenAI | None = None
-        self._ffmpeg_ready = False
 
     def _get_client(self) -> AsyncOpenAI:
         if self._client is None:
@@ -57,8 +60,14 @@ class STTService:
             base_url = settings.stt_base_url
 
             if not api_key:
-                key_var = "OPENAI_API_KEY" if settings.stt_provider == "openai" else "OPENROUTER_API_KEY"
-                raise ValueError(f"{key_var} is required for STT_PROVIDER={settings.stt_provider}")
+                key_var = (
+                    "OPENAI_API_KEY"
+                    if settings.stt_provider == "openai"
+                    else "OPENROUTER_API_KEY"
+                )
+                raise ValueError(
+                    f"{key_var} is required for STT_PROVIDER={settings.stt_provider}"
+                )
 
             self._client = AsyncOpenAI(
                 api_key=api_key,
@@ -80,9 +89,17 @@ class STTService:
         mime_type: str = "audio/webm",
     ) -> TranscriptResult:
         """Transcribe audio bytes to text using the configured provider."""
+        if len(audio_data) < MIN_AUDIO_BYTES:
+            raise AudioConversionError("Audio data is too short or empty")
+
+        normalized_mime = normalize_mime_type(mime_type)
         if settings.stt_provider == "gpt-audio-mini":
-            return await self._transcribe_via_chat(audio_data, language_hint, mime_type)
-        return await self._transcribe_via_whisper(audio_data, language_hint, mime_type)
+            return await self._transcribe_via_chat(
+                audio_data, language_hint, normalized_mime
+            )
+        return await self._transcribe_via_whisper(
+            audio_data, language_hint, normalized_mime
+        )
 
     async def transcribe_chunk(
         self,
@@ -90,20 +107,7 @@ class STTService:
         language: str = "auto",
         mime_type: str = "audio/webm",
     ) -> "TranscriptResult | None":
-        """Transcribe a partial audio chunk for real-time interim results.
-
-        Skips chunks shorter than 1 000 bytes and applies a 30-second
-        hard timeout so a slow STT provider cannot block the WebSocket.
-
-        Args:
-            audio_bytes: Raw audio data to transcribe.
-            language: ISO language code or `"auto"` for auto-detection.
-            mime_type: MIME type of the audio data.
-
-        Returns:
-            A TranscriptResult on success, or None when the chunk is
-            too short or transcription times out.
-        """
+        """Transcribe a partial audio chunk for real-time interim results."""
         if len(audio_bytes) < 1000:
             return None
 
@@ -124,20 +128,20 @@ class STTService:
             logger.error("STT chunk transcription failed", error=str(exc))
             return None
 
-    # ── Whisper endpoint (openrouter / openai) ───────────────
-
-    def _prepare_audio_for_whisper(
+    async def _prepare_audio_for_stt(
         self, audio_data: bytes, mime_type: str
     ) -> tuple[bytes, str]:
-        """Transcode browser webm/opus to wav when needed — Whisper rejects many webm blobs."""
-        normalized = self._normalize_mime_type(mime_type)
-        if normalized in ("audio/wav", "audio/mpeg", "audio/mp3"):
+        """Transcode browser webm/opus to wav when needed."""
+        normalized = normalize_mime_type(mime_type)
+        if self._mime_to_gpt_audio_format(normalized):
             ext = self._mime_to_extension(normalized)
             return audio_data, ext
-        converted, out_mime = self._convert_audio_for_gpt(audio_data, normalized)
+        wav_bytes, out_mime = await convert_to_wav(audio_data, normalized)
         if out_mime == "audio/wav":
-            return converted, "wav"
-        return audio_data, self._mime_to_extension(normalized)
+            return wav_bytes, "wav"
+        raise AudioConversionError(
+            f"Could not prepare audio for STT from mime '{mime_type}'"
+        )
 
     async def _transcribe_via_whisper(
         self,
@@ -148,7 +152,7 @@ class STTService:
         start = time.perf_counter()
         client = self._get_client()
 
-        audio_data, ext = self._prepare_audio_for_whisper(audio_data, mime_type)
+        audio_data, ext = await self._prepare_audio_for_stt(audio_data, mime_type)
 
         try:
             response = await self._request_whisper_transcription(
@@ -159,11 +163,12 @@ class STTService:
                 language_hint=language_hint,
             )
         except Exception as exc:
-            # OpenRouter Whisper occasionally returns upstream 5xx pages.
-            # Try a different transcription model first, then chat fallback only if
-            # the incoming audio format is compatible with chat input_audio.
             status_code = self._extract_status_code(exc)
-            if settings.stt_provider == "openrouter" and status_code is not None and status_code >= 500:
+            if (
+                settings.stt_provider == "openrouter"
+                and status_code is not None
+                and status_code >= 500
+            ):
                 logger.warning(
                     "Whisper upstream failed; trying STT fallbacks",
                     provider=settings.stt_provider,
@@ -194,7 +199,9 @@ class STTService:
                             lang=fallback_response.language,
                             elapsed_ms=elapsed_ms,
                         )
-                        return self._build_whisper_result(fallback_response, elapsed_ms)
+                        return self._build_whisper_result(
+                            fallback_response, elapsed_ms
+                        )
                     except Exception as fallback_exc:
                         logger.warning(
                             "Whisper fallback model failed",
@@ -216,17 +223,22 @@ class STTService:
 
             elapsed_ms = int((time.perf_counter() - start) * 1000)
             metrics.record("stt", elapsed_ms, success=False)
-            logger.error("Whisper STT failed", provider=settings.stt_provider, error=str(exc))
+            logger.error(
+                "Whisper STT failed", provider=settings.stt_provider, error=str(exc)
+            )
             raise
 
         elapsed_ms = int((time.perf_counter() - start) * 1000)
         metrics.record("stt", elapsed_ms, success=True)
 
-        logger.info("STT complete", provider=settings.stt_provider,
-                    chars=len(response.text), lang=response.language, elapsed_ms=elapsed_ms)
+        logger.info(
+            "STT complete",
+            provider=settings.stt_provider,
+            chars=len(response.text),
+            lang=response.language,
+            elapsed_ms=elapsed_ms,
+        )
         return self._build_whisper_result(response, elapsed_ms)
-
-    # ── gpt-audio-mini chat completions path ─────────────────
 
     async def _try_chat_transcription_fallback(
         self,
@@ -236,20 +248,23 @@ class STTService:
         *,
         prepared_ext: str,
     ) -> TranscriptResult | None:
-        """
-        Last-resort STT via gpt-audio-mini when Whisper endpoints return 5xx.
-
-        Uses WAV bytes already prepared for Whisper when available; otherwise
-        transcodes browser webm/opus so we are not blocked by MIME checks on the
-        original Content-Type string (e.g. audio/webm;codecs=opus).
-        """
+        """Last-resort STT via gpt-audio-mini when Whisper endpoints return 5xx."""
         chat_audio = audio_data
         if prepared_ext == "wav":
             chat_mime = "audio/wav"
         else:
-            chat_mime = self._normalize_mime_type(mime_type)
+            chat_mime = normalize_mime_type(mime_type)
             if not self._mime_to_gpt_audio_format(chat_mime):
-                chat_audio, chat_mime = self._convert_audio_for_gpt(chat_audio, chat_mime)
+                try:
+                    chat_audio, chat_mime = await convert_to_wav(
+                        chat_audio, chat_mime
+                    )
+                except AudioConversionError as exc:
+                    logger.warning(
+                        "Chat STT fallback skipped — transcode failed",
+                        error=str(exc),
+                    )
+                    return None
 
         if not self._mime_to_gpt_audio_format(chat_mime):
             logger.warning(
@@ -277,33 +292,31 @@ class STTService:
         language_hint: str | None,
         mime_type: str,
     ) -> TranscriptResult:
-        """
-        Send audio as base64 to gpt-audio-mini via the chat completions API.
-        The model transcribes and returns text only (prompted to avoid commentary).
-        """
+        """Send audio as base64 to gpt-audio-mini via chat completions."""
         start = time.perf_counter()
         client = self._get_client()
 
-        normalized_mime = self._normalize_mime_type(mime_type)
+        normalized_mime = normalize_mime_type(mime_type)
         fmt = self._mime_to_gpt_audio_format(normalized_mime)
         if not fmt:
-            audio_data, normalized_mime = self._convert_audio_for_gpt(audio_data, normalized_mime)
+            audio_data, normalized_mime = await convert_to_wav(audio_data, normalized_mime)
             fmt = self._mime_to_gpt_audio_format(normalized_mime)
         if not fmt:
-            raise ValueError(
-                f"gpt-audio-mini input_audio does not support mime '{mime_type}'. "
-                "Supported formats are audio/wav and audio/mpeg."
+            raise AudioConversionError(
+                f"gpt-audio-mini requires wav/mp3; could not convert '{mime_type}'"
             )
         audio_b64 = base64.b64encode(audio_data).decode("utf-8")
 
         lang_instruction = (
-            f" The audio is in {language_hint}." if language_hint and language_hint != "auto" else ""
+            f" The audio is in {language_hint}."
+            if language_hint and language_hint != "auto"
+            else ""
         )
 
         try:
             response = await client.chat.completions.create(
                 model="openai/gpt-audio-mini",
-                modalities=["text"],   # text-only output — we just want the transcript
+                modalities=["text"],
                 messages=[
                     {
                         "role": "system",
@@ -340,11 +353,13 @@ class STTService:
         metrics.record("stt", elapsed_ms, success=True)
 
         transcript = response.choices[0].message.content or ""
+        detected_lang = (
+            language_hint if language_hint and language_hint != "auto" else "unknown"
+        )
 
-        # Attempt to detect language from the transcript text
-        detected_lang = language_hint if language_hint and language_hint != "auto" else "unknown"
-
-        logger.info("gpt-audio-mini STT complete", chars=len(transcript), elapsed_ms=elapsed_ms)
+        logger.info(
+            "gpt-audio-mini STT complete", chars=len(transcript), elapsed_ms=elapsed_ms
+        )
 
         return TranscriptResult(
             text=transcript.strip(),
@@ -356,7 +371,7 @@ class STTService:
 
     @staticmethod
     def _mime_to_extension(mime_type: str) -> str:
-        normalized = STTService._normalize_mime_type(mime_type)
+        normalized = normalize_mime_type(mime_type)
         return {
             "audio/webm": "webm",
             "audio/ogg": "ogg",
@@ -368,59 +383,11 @@ class STTService:
 
     @staticmethod
     def _mime_to_gpt_audio_format(mime_type: str) -> str | None:
-        normalized = STTService._normalize_mime_type(mime_type)
+        normalized = normalize_mime_type(mime_type)
         return {
             "audio/wav": "wav",
             "audio/mpeg": "mp3",
         }.get(normalized)
-
-    @staticmethod
-    def _normalize_mime_type(mime_type: str) -> str:
-        return (mime_type or "").split(";", 1)[0].strip().lower()
-
-    def _convert_audio_for_gpt(self, audio_data: bytes, mime_type: str) -> tuple[bytes, str]:
-        # gpt-audio-mini chat input only accepts wav/mp3.
-        # Browser MediaRecorder sends webm/opus, so we transcode to wav on server.
-        supported_input = {"audio/webm", "audio/ogg", "audio/mp4", "audio/flac"}
-        if mime_type not in supported_input:
-            return audio_data, mime_type
-
-        ffmpeg_exe = self._ensure_ffmpeg_ready()
-        input_format = self._mime_to_extension(mime_type)
-        try:
-            cmd = [
-                ffmpeg_exe,
-                "-nostdin",
-                "-hide_banner",
-                "-loglevel",
-                "error",
-                "-f",
-                input_format,
-                "-i",
-                "pipe:0",
-                "-f",
-                "wav",
-                "-acodec",
-                "pcm_s16le",
-                "pipe:1",
-            ]
-            proc = subprocess.run(cmd, input=audio_data, capture_output=True, check=False)
-            if proc.returncode != 0:
-                raise RuntimeError(proc.stderr.decode("utf-8", errors="ignore").strip() or "ffmpeg failed")
-            out_bytes = proc.stdout
-            if not out_bytes:
-                raise RuntimeError("ffmpeg produced empty output")
-            logger.info("Converted audio for gpt-audio-mini", source_mime=mime_type, target_mime="audio/wav")
-            return out_bytes, "audio/wav"
-        except Exception as exc:
-            logger.warning("Audio conversion for gpt-audio-mini failed", source_mime=mime_type, error=str(exc))
-            return audio_data, mime_type
-
-    def _ensure_ffmpeg_ready(self) -> str:
-        if self._ffmpeg_ready:
-            return imageio_ffmpeg.get_ffmpeg_exe()
-        self._ffmpeg_ready = True
-        return imageio_ffmpeg.get_ffmpeg_exe()
 
     async def _request_whisper_transcription(
         self,
@@ -444,7 +411,10 @@ class STTService:
     def _build_whisper_result(response, elapsed_ms: int) -> TranscriptResult:
         segments = []
         if hasattr(response, "segments") and response.segments:
-            segments = [{"start": s.start, "end": s.end, "text": s.text} for s in response.segments]
+            segments = [
+                {"start": s.start, "end": s.end, "text": s.text}
+                for s in response.segments
+            ]
 
         return TranscriptResult(
             text=response.text.strip(),

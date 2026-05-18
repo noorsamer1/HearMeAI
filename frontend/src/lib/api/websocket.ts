@@ -126,20 +126,31 @@ export class SessionWebSocket {
   }
 
   sendAudioChunk(base64: string, mimeType = "audio/webm"): void {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn(
+        "[WS] sendAudioChunk is deprecated — send one complete recording via sendAudioEnd"
+      );
+    }
     this.send({ type: "audio_chunk", data: base64, mimeType });
   }
 
   sendAudioEnd(
     lang?: string,
     camera?: { label: string; confidence: number } | null,
-    moodLabel?: string | null
+    moodLabel?: string | null,
+    options?: { data?: string; mimeType?: string }
   ): void {
     this.send({
       type: "audio_end",
       lang: lang || "auto",
+      ...(options?.data ? { data: options.data, mimeType: options.mimeType || "audio/webm" } : {}),
       ...this._cameraFields(camera),
       ...this._moodFields(moodLabel),
     });
+  }
+
+  isOpen(): boolean {
+    return this.ws?.readyState === WebSocket.OPEN;
   }
 
   sendText(

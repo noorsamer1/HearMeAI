@@ -81,27 +81,57 @@ export function setStoredToken(token: string | null): void {
 }
 
 // ── Speech-to-Text ────────────────────────────────────────────
+function audioFilenameForBlob(blob: Blob): string {
+  const type = (blob.type || "audio/webm").split(";")[0].trim().toLowerCase();
+  const ext =
+    type === "audio/ogg"
+      ? "ogg"
+      : type === "audio/mp4"
+        ? "m4a"
+        : type === "audio/wav"
+          ? "wav"
+          : type === "audio/mpeg"
+            ? "mp3"
+            : "webm";
+  return `recording.${ext}`;
+}
+
 export async function transcribeAudio(
   audioBlob: Blob,
-  language = "auto"
+  language = "auto",
+  token?: string | null
 ): Promise<{
   text: string;
   confidence: number;
   detected_language: string;
   processing_time_ms: number;
+  segments?: { start: number; end: number; text: string }[];
 }> {
   const form = new FormData();
-  form.append("audio", audioBlob, "audio.webm");
+  form.append("audio", audioBlob, audioFilenameForBlob(audioBlob));
   form.append("language", language);
+
+  const headers: HeadersInit = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
 
   const response = await fetch(`${API_URL}/api/v1/speech-to-text`, {
     method: "POST",
+    headers,
     body: form,
   });
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
-    throw new Error(err.detail || "Transcription failed");
+    const detail = err.detail;
+    const message =
+      typeof detail === "string"
+        ? detail
+        : Array.isArray(detail)
+          ? detail.map((d: { msg?: string }) => d.msg).filter(Boolean).join(", ")
+          : "Transcription failed";
+    throw new Error(message || "Transcription failed");
   }
 
   return response.json();

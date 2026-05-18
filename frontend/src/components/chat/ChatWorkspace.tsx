@@ -26,7 +26,7 @@ export function ChatWorkspace({ userType = "deaf", ...sessionOpts }: ChatWorkspa
   const router = useRouter();
   // Pass userType directly so WS event handlers in useSession always see
   // the correct value without waiting for the Zustand store to sync.
-  const { sendText, sendAudioChunk, sendAudioEnd, sendAction } = useSession({ ...sessionOpts, userType });
+  const { sendText, sendAudioEnd, sendAction } = useSession({ ...sessionOpts, userType });
   const {
     addMessage,
     setUserType,
@@ -58,16 +58,12 @@ export function ChatWorkspace({ userType = "deaf", ...sessionOpts }: ChatWorkspa
     [addMessage, sendText]
   );
 
-  const handleAudioChunk = useCallback(
-    (base64: string, mimeType: string) => {
-      sendAudioChunk(base64, mimeType);
+  const handleAudioStop = useCallback(
+    (blob: Blob | null, mimeType: string, durationMs: number) => {
+      void sendAudioEnd(blob, mimeType, durationMs);
     },
-    [sendAudioChunk]
+    [sendAudioEnd]
   );
-
-  const handleAudioStop = useCallback(() => {
-    sendAudioEnd();
-  }, [sendAudioEnd]);
 
   const handleAction = useCallback(
     (action: "simplify" | "clarify" | "translate", text: string, messageId: string) => {
@@ -87,7 +83,6 @@ export function ChatWorkspace({ userType = "deaf", ...sessionOpts }: ChatWorkspa
             <ChatTimeline onAction={handleAction} />
             <ControlDock
               onSendText={handleSendText}
-              onAudioChunk={handleAudioChunk}
               onAudioStop={handleAudioStop}
               userType={userType}
             />
