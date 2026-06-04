@@ -12,7 +12,6 @@ import { buildSpellPlan } from "@/lib/sign/spellingPlan";
 import {
   applyAssistantGifPreview,
   applySignPreviewFromText,
-  applySpellPreviewForDeaf,
 } from "@/lib/sign/signPreviewHelpers";
 
 export interface UseSessionOptions {
@@ -42,6 +41,8 @@ export function useSession(opts: UseSessionOptions = {}) {
   const pendingAiMessageId = useRef<Map<string, string>>(new Map());
   /** Server AI message IDs already finalized via ai_final (skip duplicate ai_response). */
   const completedAiServerIds = useRef<Set<string>>(new Set());
+  /** Full chat text last used for sign preview (peer/user message). */
+  const lastSignPreviewTextRef = useRef<string>("");
 
   // Keep a stable ref so WS closures always read the current userType
   // without recreating the entire WebSocket when the prop changes.
@@ -188,6 +189,7 @@ export function useSession(opts: UseSessionOptions = {}) {
           typeof e.sentimentScore === "number" ? (e.sentimentScore as number) : undefined,
         sentimentSource: (e.sentimentSource as string) || undefined,
       });
+      lastSignPreviewTextRef.current = transcriptText;
       applySignPreviewFromText(transcriptText, userTypeRef.current);
       // Map server messageId → local message id for subsequent AI linking
       if (e.messageId) {
@@ -345,6 +347,7 @@ export function useSession(opts: UseSessionOptions = {}) {
       const text = (e.text as string) || "";
       if (!text) return;
 
+      lastSignPreviewTextRef.current = text;
       applySignPreviewFromText(text, userTypeRef.current);
 
       const localId = addMessage({
@@ -373,16 +376,16 @@ export function useSession(opts: UseSessionOptions = {}) {
       }
     });
 
-    ws.on("sign_suggestion", (e) => {
-      const phraseKey = e.phraseKey as string;
-      const assetUrl = e.assetUrl as string | undefined;
-      if (!phraseKey) return;
+    ws.on("sign_suggestion", () => {
       const ut = userTypeRef.current;
+      const sourceText = lastSignPreviewTextRef.current.trim();
+      if (!sourceText) return;
       if (ut === "deaf" || ut === "both") {
-        applySpellPreviewForDeaf(phraseKey, assetUrl ? { assetUrl } : undefined);
+        // Re-apply from full message text. Legacy handler finger-spelled phraseKey
+        // and overwrote phrase GIFs (e.g. "please repeat" → 2D letters).
+        applySignPreviewFromText(sourceText, ut);
         return;
       }
-      setSignPreview({ phraseKey, assetUrl });
     });
 
     ws.on("session_deleted", () => {
@@ -485,6 +488,7 @@ export function useSession(opts: UseSessionOptions = {}) {
   const sendText = useCallback(
     (text: string, requestTTS = false) => {
       setReplyEmotionHint(null);
+      lastSignPreviewTextRef.current = text.trim();
       applySignPreviewFromText(text, userTypeRef.current);
       const { manualMood } = useSessionStore.getState();
       wsRef.current?.sendText(
@@ -508,6 +512,7 @@ export function useSession(opts: UseSessionOptions = {}) {
         confidence,
         detectedLang,
       });
+      lastSignPreviewTextRef.current = transcriptText;
       applySignPreviewFromText(transcriptText, userTypeRef.current);
       return id;
     },

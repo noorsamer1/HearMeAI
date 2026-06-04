@@ -23,6 +23,7 @@ const SIGN_PHRASES: Array<{ key: string; labelEn: string; labelAr: string; emoji
   { key: "yes",         labelEn: "Yes",         labelAr: "نعم",       emoji: "✅" },
   { key: "no",          labelEn: "No",          labelAr: "لا",        emoji: "❌" },
   { key: "please",      labelEn: "Please",      labelAr: "من فضلك",   emoji: "🙏" },
+  { key: "please repeat", labelEn: "Please repeat", labelAr: "كرر من فضلك", emoji: "🔁" },
   { key: "help",        labelEn: "Help",        labelAr: "ساعدني",    emoji: "🆘" },
   { key: "sorry",       labelEn: "Sorry",       labelAr: "آسف",       emoji: "😔" },
   { key: "good",        labelEn: "Good",        labelAr: "جيد",       emoji: "👍" },

@@ -80,6 +80,11 @@ export function applySignPreviewFromText(
 
   const phraseKey = inferSignPhraseKey(trimmed);
   if (phraseKey) {
+    const phraseGifFromKey = getPhraseSignGifByPhraseKey(phraseKey);
+    if (phraseGifFromKey) {
+      applyPhraseGifPreview(phraseGifFromKey);
+      return;
+    }
     useSessionStore.getState().setSignPreview({
       phraseKey,
       spellPlan: undefined,
