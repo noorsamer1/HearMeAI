@@ -8,6 +8,7 @@ import { SignPreview } from "@/components/avatar/SignPreview";
 import { buildSpellPlan } from "@/lib/sign/spellingPlan";
 
 const LETTER_SPACE_LS = "hearmeai-sign-letter-spacing";
+const PREVIEW_RENDERER_LS = "hearmeai-sign-preview-renderer";
 
 /**
  * 3D/2D signer panel for the session workspace.
@@ -17,6 +18,8 @@ export function ChatHologramDock() {
   const language = useSessionStore((s) => s.language);
   const userType = useSessionStore((s) => s.userType);
   const signShowSpacesBetweenLetters = useSessionStore((s) => s.signShowSpacesBetweenLetters);
+  const signPreviewRenderer = useSessionStore((s) => s.signPreviewRenderer);
+  const setSignPreviewRenderer = useSessionStore((s) => s.setSignPreviewRenderer);
   const setSignShowSpacesBetweenLetters = useSessionStore(
     (s) => s.setSignShowSpacesBetweenLetters
   );
@@ -30,12 +33,30 @@ export function ChatHologramDock() {
       if (window.localStorage.getItem(LETTER_SPACE_LS) === "1") {
         setSignShowSpacesBetweenLetters(true);
       }
+      const savedRenderer = window.localStorage.getItem(PREVIEW_RENDERER_LS);
+      if (savedRenderer === "gif" || savedRenderer === "2d") {
+        setSignPreviewRenderer(savedRenderer);
+      }
     } catch {
       /* ignore */
     }
-  }, [setSignShowSpacesBetweenLetters]);
+  }, [setSignShowSpacesBetweenLetters, setSignPreviewRenderer]);
 
-  const showLetterControls = userType === "deaf" || userType === "both";
+  const signPreview = useSessionStore((s) => s.signPreview);
+  const showPreviewControls = userType === "deaf" || userType === "both";
+  const showLetterControls =
+    showPreviewControls &&
+    signPreviewRenderer === "2d" &&
+    signPreview?.previewMode === "sign";
+
+  const setRenderer = (renderer: "gif" | "2d") => {
+    setSignPreviewRenderer(renderer);
+    try {
+      window.localStorage.setItem(PREVIEW_RENDERER_LS, renderer);
+    } catch {
+      /* ignore */
+    }
+  };
 
   const toggleLetterSpacing = () => {
     const next = !signShowSpacesBetweenLetters;
@@ -54,7 +75,7 @@ export function ChatHologramDock() {
 
   return (
     <div
-      className="flex flex-col h-full min-h-0 bg-[var(--color-surface)]/90 backdrop-blur-md"
+      className="flex flex-col flex-1 min-h-0 w-full bg-[var(--color-surface)]/90 backdrop-blur-md"
       aria-label={t.chat.hologramTitle}
     >
       <div className="px-3 py-2.5 border-b border-[var(--color-border)] flex flex-wrap items-center justify-between gap-2 shrink-0">
@@ -64,22 +85,58 @@ export function ChatHologramDock() {
             {t.chat.hologramTitle}
           </span>
         </div>
-        {showLetterControls && (
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              type="button"
-              onClick={toggleLetterSpacing}
-              title="Insert short pause ( · ) between finger-spelled letters"
-              aria-pressed={signShowSpacesBetweenLetters}
-              className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-semibold transition ${
-                signShowSpacesBetweenLetters
-                  ? "border-[var(--color-brand)] bg-[color-mix(in_srgb,var(--color-brand)_18%,transparent)] text-[var(--color-brand)]"
-                  : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-brand)]"
-              }`}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {showPreviewControls && (
+            <div
+              className="inline-flex rounded-lg border border-[var(--color-border)] p-0.5"
+              role="group"
+              aria-label={t.chat.previewRendererLabel}
             >
-              <StretchHorizontal className="w-3.5 h-3.5" aria-hidden />
-              Space
-            </button>
+              <button
+                type="button"
+                onClick={() => setRenderer("gif")}
+                aria-pressed={signPreviewRenderer === "gif"}
+                className={`rounded-md px-2 py-1 text-[10px] font-semibold transition ${
+                  signPreviewRenderer === "gif"
+                    ? "bg-[color-mix(in_srgb,var(--color-brand)_18%,transparent)] text-[var(--color-brand)]"
+                    : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                }`}
+              >
+                {t.chat.previewRendererGif}
+              </button>
+              <button
+                type="button"
+                onClick={() => setRenderer("2d")}
+                aria-pressed={signPreviewRenderer === "2d"}
+                className={`rounded-md px-2 py-1 text-[10px] font-semibold transition ${
+                  signPreviewRenderer === "2d"
+                    ? "bg-[color-mix(in_srgb,var(--color-brand)_18%,transparent)] text-[var(--color-brand)]"
+                    : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                }`}
+              >
+                {t.chat.previewRenderer2d}
+              </button>
+            </div>
+          )}
+          {showLetterControls && (
+            <>
+              <button
+                type="button"
+                onClick={toggleLetterSpacing}
+                title="Insert short pause ( · ) between finger-spelled letters"
+                aria-pressed={signShowSpacesBetweenLetters}
+                className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-semibold transition ${
+                  signShowSpacesBetweenLetters
+                    ? "border-[var(--color-brand)] bg-[color-mix(in_srgb,var(--color-brand)_18%,transparent)] text-[var(--color-brand)]"
+                    : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-brand)]"
+                }`}
+              >
+                <StretchHorizontal className="w-3.5 h-3.5" aria-hidden />
+                Space
+              </button>
+            </>
+          )}
+          {showPreviewControls && signPreview && (
             <button
               type="button"
               onClick={() => bumpSignReplay()}
@@ -89,8 +146,8 @@ export function ChatHologramDock() {
               <RotateCcw className="w-3.5 h-3.5" aria-hidden />
               Repeat
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
       <div className="flex-1 min-h-[200px] max-h-[min(50vh,420px)] w-full relative">
         <SignPreview embedded />

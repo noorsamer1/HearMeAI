@@ -3,31 +3,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Signpost } from "lucide-react";
 import { useSessionStore } from "@/lib/state/sessionStore";
-import { HologramPose, HologramSigner3D } from "@/components/avatar/HologramSigner3D";
+import { GeneralResponseGif } from "@/components/avatar/GeneralResponseGif";
 import SignLanguageWidget, { MotionPlan } from "@/components/avatar/SignLanguageWidget";
+import { getPhraseSignGifByPhraseKey } from "@/lib/sign/phraseSignGifs";
 import { HOLOGRAM_2D_DURATION_SCALE } from "@/lib/sign/playbackTiming";
 
 interface SignPreviewProps {
   embedded?: boolean;
   /** When set, ignore the store's signPreview and show this phraseKey directly */
   overridePhraseKey?: string;
-  /** Compact layout: smaller widget, no drag handle, no mode toggle */
+  /** Compact layout: smaller widget, no drag handle */
   compact?: boolean;
 }
 
 const SIGNER_OFFSET_KEY = "hearmeai-signer-offset-v3";
 const DESKTOP_SIGNER_WIDTH = 260;
 const DESKTOP_SIGNER_HEIGHT = 380;
-
-const SIGN_SEQUENCE_MAP: Record<string, HologramPose[]> = {
-  hello: ["wave", "wave", "neutral"],
-  "thank you": ["thank-you", "neutral"],
-  "how are you": ["question", "question", "neutral"],
-  yes: ["yes", "neutral"],
-  no: ["no", "neutral"],
-  please: ["please", "neutral"],
-  help: ["help", "neutral"],
-};
 
 type Offset = { right: number; bottom: number };
 
@@ -46,15 +37,48 @@ function readOffset(): Offset {
   }
 }
 
-export function SignPreview({ embedded = false, overridePhraseKey, compact = false }: SignPreviewProps) {
-  const { signPreview, signReplayNonce } = useSessionStore();
+function SignWidgetPanel({
+  phraseKey,
+  widgetMotionPlan,
+  replayNonce,
+  className = "",
+  stepDurationScale = 1,
+  transitionDurationSec = 0.22,
+}: {
+  phraseKey: string;
+  widgetMotionPlan?: MotionPlan;
+  replayNonce: number;
+  className?: string;
+  stepDurationScale?: number;
+  transitionDurationSec?: number;
+}) {
+  return (
+    <div
+      className={`flex h-full w-full items-center justify-center rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-raised)]/70 p-3 backdrop-blur-sm ${className}`}
+    >
+      <SignLanguageWidget
+        phrase={phraseKey || "neutral"}
+        motionPlan={widgetMotionPlan}
+        replayNonce={replayNonce}
+        className="w-full"
+        stepDurationScale={stepDurationScale}
+        transitionDurationSec={transitionDurationSec}
+      />
+    </div>
+  );
+}
+
+export function SignPreview({
+  embedded = false,
+  overridePhraseKey,
+  compact = false,
+}: SignPreviewProps) {
+  const { signPreview, signReplayNonce, language, signPreviewRenderer } =
+    useSessionStore();
   const hasPreview = overridePhraseKey ? true : Boolean(signPreview);
-  const [stepIndex, setStepIndex] = useState(0);
-  const [sequenceActive, setSequenceActive] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [offset, setOffset] = useState<Offset>({ right: 24, bottom: 140 });
-  const [use3DMode, setUse3DMode] = useState(false);
   const dragRef = useRef<{
     active: boolean;
     startX: number;
@@ -69,42 +93,43 @@ export function SignPreview({ embedded = false, overridePhraseKey, compact = fal
     startBottom: 140,
   });
 
-  // When overridePhraseKey is set, use it directly (bypasses store)
   const phraseKey = overridePhraseKey
     ? overridePhraseKey.trim().toLowerCase()
     : (signPreview?.phraseKey?.trim().toLowerCase() ?? "");
   const spellPlan = overridePhraseKey ? undefined : signPreview?.spellPlan;
   const llmPlan = overridePhraseKey ? [] : (signPreview?.motionPlan ?? []);
-  const sequence = useMemo(() => {
-    if (llmPlan.length > 0) {
-      return llmPlan.map((step) => step.pose as HologramPose);
-    }
-    return SIGN_SEQUENCE_MAP[phraseKey] ?? ["neutral"];
-  }, [phraseKey, llmPlan]);
-  const stepDurations = useMemo(() => {
-    if (llmPlan.length > 0) {
-      return llmPlan.map((step) => Math.max(350, Math.min(step.durationMs, 2200)));
-    }
-    return sequence.map(() => 900);
-  }, [llmPlan, sequence]);
-  const sequenceSignature = useMemo(() => {
-    if (overridePhraseKey) return `ov:${overridePhraseKey}`;
-    if (!signPreview) return "none";
-    const sp = (signPreview.spellPlan ?? [])
-      .map((s) => `${s.label}:${s.durationMs}`)
-      .join("|");
-    const planSig = (signPreview.motionPlan ?? [])
-      .map((step) => `${step.pose}:${step.durationMs}`)
-      .join("|");
-    return `${signPreview.phraseKey}|spell:${sp}|plan:${planSig}|r:${signReplayNonce}`;
-  }, [signPreview, overridePhraseKey, signReplayNonce]);
+  const previewMode = overridePhraseKey ? "sign" : (signPreview?.previewMode ?? "sign");
+  const gifSourceText = signPreview?.spellSourceText ?? signPreview?.phraseKey ?? "";
+  const phraseGifFile = signPreview?.phraseGifFile;
+  const phraseGifMeta = useMemo(
+    () => getPhraseSignGifByPhraseKey(overridePhraseKey ?? phraseKey),
+    [overridePhraseKey, phraseKey]
+  );
 
-  const activePose = sequenceActive ? sequence[Math.min(stepIndex, sequence.length - 1)] : "neutral";
+  const widgetMotionPlan: MotionPlan | undefined = useMemo(() => {
+    if (spellPlan && spellPlan.length > 0) {
+      return { poses: spellPlan };
+    }
+    if (llmPlan.length > 0) {
+      return {
+        poses: llmPlan.map((step) => ({
+          label: step.pose,
+          durationMs: step.durationMs,
+        })),
+      };
+    }
+    return undefined;
+  }, [spellPlan, llmPlan]);
 
-  useEffect(() => {
-    setStepIndex(0);
-    setSequenceActive(hasPreview);
-  }, [hasPreview, sequenceSignature]);
+  const showPhraseGif =
+    signPreviewRenderer === "gif" &&
+    previewMode === "phrase-gif" &&
+    Boolean(phraseGifFile) &&
+    !overridePhraseKey;
+  const showMoodGif =
+    signPreviewRenderer === "gif" && previewMode === "gif" && !overridePhraseKey;
+  const showGif = showPhraseGif || showMoodGif;
+  const hologram2dSlow = embedded && !compact && !overridePhraseKey;
 
   useEffect(() => {
     if (embedded) return;
@@ -124,25 +149,6 @@ export function SignPreview({ embedded = false, overridePhraseKey, compact = fal
     if (typeof window === "undefined") return;
     window.localStorage.setItem(SIGNER_OFFSET_KEY, JSON.stringify(offset));
   }, [embedded, isMobile, offset]);
-
-  useEffect(() => {
-    if (!sequenceActive) return;
-    if (!sequence.length) return;
-
-    if (stepIndex >= sequence.length - 1) {
-      const hold = stepDurations[stepIndex] ?? 900;
-      const timer = window.setTimeout(() => {
-        setSequenceActive(false);
-      }, hold);
-      return () => window.clearTimeout(timer);
-    }
-
-    const delay = stepDurations[stepIndex] ?? 900;
-    const timer = window.setTimeout(() => {
-      setStepIndex((prev) => Math.min(prev + 1, sequence.length - 1));
-    }, delay);
-    return () => window.clearTimeout(timer);
-  }, [sequenceActive, sequence, stepDurations, stepIndex]);
 
   useEffect(() => {
     if (embedded || isMobile) return;
@@ -175,39 +181,18 @@ export function SignPreview({ embedded = false, overridePhraseKey, compact = fal
     };
   }, [embedded, isMobile]);
 
-  const hologram2dSlow = embedded && !compact && !overridePhraseKey;
+  if (!hasPreview && embedded) {
+    return (
+      <div className="flex h-full min-h-[200px] items-center justify-center px-4 text-center text-xs text-[var(--color-text-muted)]">
+        Responses and sign previews appear here.
+      </div>
+    );
+  }
 
-  // Build a MotionPlan for the 2-D widget: finger-spelling overrides backend poses.
-  const widgetMotionPlan: MotionPlan | undefined =
-    spellPlan && spellPlan.length > 0
-      ? { poses: spellPlan }
-      : llmPlan.length > 0
-        ? {
-            poses: llmPlan.map((step) => ({
-              label: step.pose,
-              durationMs: step.durationMs,
-            })),
-          }
-        : undefined;
-
-  /** Shared toggle button rendered in 3-D mode corners */
-  const ModeToggle = ({ className = "" }: { className?: string }) => (
-    <button
-      type="button"
-      onClick={() => setUse3DMode((v) => !v)}
-      title={use3DMode ? "Switch to 2D widget" : "Switch to 3D avatar"}
-      aria-label={use3DMode ? "Switch to 2D widget" : "Switch to 3D avatar"}
-      className={`absolute z-20 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-raised)]/80 px-2 py-1 text-[10px] font-semibold text-[var(--color-text-muted)] backdrop-blur-sm transition hover:border-[var(--color-brand)] hover:text-[var(--color-brand)] ${className}`}
-    >
-      {use3DMode ? "2D" : "3D"}
-    </button>
-  );
-
-  // Compact mode: used in notification popups — no drag, no mode toggle
   if (compact || overridePhraseKey) {
     return (
       <div
-        className="relative w-full flex items-center justify-center p-2"
+        className="relative flex w-full items-center justify-center p-2"
         style={{ minHeight: 120 }}
         role="region"
         aria-label="Sign language preview"
@@ -222,28 +207,40 @@ export function SignPreview({ embedded = false, overridePhraseKey, compact = fal
     );
   }
 
+  const previewBody = showGif ? (
+    <GeneralResponseGif
+      text={showMoodGif ? gifSourceText : ""}
+      phraseGifFile={showPhraseGif ? phraseGifFile : undefined}
+      phraseLabel={
+        showPhraseGif && phraseGifMeta
+          ? language === "ar"
+            ? phraseGifMeta.labelAr
+            : phraseGifMeta.labelEn
+          : undefined
+      }
+      phraseFallbackEmoji={phraseGifMeta?.fallbackEmoji}
+      replayNonce={signReplayNonce}
+      className="h-full w-full"
+    />
+  ) : (
+    <SignWidgetPanel
+      phraseKey={phraseKey}
+      widgetMotionPlan={widgetMotionPlan}
+      replayNonce={signReplayNonce}
+      className={embedded ? "max-w-[220px] mx-auto" : ""}
+      stepDurationScale={hologram2dSlow ? HOLOGRAM_2D_DURATION_SCALE : 1}
+      transitionDurationSec={hologram2dSlow ? 0.34 : 0.22}
+    />
+  );
+
   if (embedded) {
     return (
       <div
-        className="relative w-full h-full min-h-[290px]"
+        className="relative h-full min-h-[290px] w-full"
         role="region"
         aria-label="Signer preview"
       >
-        <ModeToggle className="top-2 right-2" />
-        {use3DMode ? (
-          <HologramSigner3D pose={activePose} />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center p-3">
-            <SignLanguageWidget
-              phrase={phraseKey || "neutral"}
-              motionPlan={widgetMotionPlan}
-              replayNonce={signReplayNonce}
-              className="w-full max-w-[220px]"
-              stepDurationScale={hologram2dSlow ? HOLOGRAM_2D_DURATION_SCALE : 1}
-              transitionDurationSec={hologram2dSlow ? 0.34 : 0.22}
-            />
-          </div>
-        )}
+        {previewBody}
       </div>
     );
   }
@@ -255,7 +252,7 @@ export function SignPreview({ embedded = false, overridePhraseKey, compact = fal
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
-            className="fixed right-4 bottom-40 z-[80] inline-flex items-center gap-1.5 rounded-full border border-[color-mix(in_srgb,var(--color-brand)_40%,transparent)] bg-[color-mix(in_srgb,var(--color-brand)_80%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--color-text-inverse)] shadow-lg backdrop-blur hover:bg-[var(--color-brand)]"
+            className="fixed bottom-40 right-4 z-[80] inline-flex items-center gap-1.5 rounded-full border border-[color-mix(in_srgb,var(--color-brand)_40%,transparent)] bg-[color-mix(in_srgb,var(--color-brand)_80%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--color-text-inverse)] shadow-lg backdrop-blur hover:bg-[var(--color-brand)]"
             aria-label="Open signer panel"
           >
             <Signpost className="h-4 w-4 text-[var(--color-brand-300)]" />
@@ -271,27 +268,9 @@ export function SignPreview({ embedded = false, overridePhraseKey, compact = fal
               onClick={() => setMobileOpen(false)}
               aria-label="Close signer panel"
             />
-            <div className="absolute inset-x-0 bottom-24 flex items-end justify-center pointer-events-none">
-              <div className="relative pointer-events-auto h-[50vh] max-h-[430px] min-h-[280px] w-[min(72vw,320px)]">
-                <button
-                  type="button"
-                  onClick={() => setUse3DMode((v) => !v)}
-                  className="absolute top-2 right-2 z-20 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-raised)]/80 px-2 py-1 text-[10px] font-semibold text-[var(--color-text-muted)] backdrop-blur-sm hover:border-[var(--color-brand)] hover:text-[var(--color-brand)]"
-                >
-                  {use3DMode ? "2D" : "3D"}
-                </button>
-                {use3DMode ? (
-                  <HologramSigner3D pose={activePose} />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center p-4">
-                    <SignLanguageWidget
-                      phrase={phraseKey || "neutral"}
-                      motionPlan={widgetMotionPlan}
-                      replayNonce={signReplayNonce}
-                      className="w-full max-w-[240px]"
-                    />
-                  </div>
-                )}
+            <div className="pointer-events-none absolute inset-x-0 bottom-24 flex items-end justify-center">
+              <div className="pointer-events-auto relative h-[50vh] max-h-[430px] min-h-[280px] w-[min(72vw,320px)]">
+                {previewBody}
               </div>
             </div>
           </div>
@@ -304,7 +283,7 @@ export function SignPreview({ embedded = false, overridePhraseKey, compact = fal
     <div
       role="region"
       aria-label="Floating signer preview"
-      className="fixed z-[60] cursor-grab active:cursor-grabbing select-none"
+      className="fixed z-[60] cursor-grab select-none active:cursor-grabbing"
       style={{
         right: offset.right,
         bottom: offset.bottom,
@@ -319,33 +298,7 @@ export function SignPreview({ embedded = false, overridePhraseKey, compact = fal
         dragRef.current.startBottom = offset.bottom;
       }}
     >
-      {/* 3D / 2D toggle — top-right corner */}
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          setUse3DMode((v) => !v);
-        }}
-        onPointerDown={(e) => e.stopPropagation()}
-        title={use3DMode ? "Switch to 2D widget" : "Switch to 3D avatar"}
-        aria-label={use3DMode ? "Switch to 2D widget" : "Switch to 3D avatar"}
-        className="absolute top-2 right-2 z-20 cursor-pointer rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-raised)]/80 px-2 py-1 text-[10px] font-semibold text-[var(--color-text-muted)] backdrop-blur-sm transition hover:border-[var(--color-brand)] hover:text-[var(--color-brand)]"
-      >
-        {use3DMode ? "2D" : "3D"}
-      </button>
-
-      {use3DMode ? (
-        <HologramSigner3D pose={activePose} />
-      ) : (
-        <div className="w-full h-full flex items-center justify-center p-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-raised)]/70 backdrop-blur-sm">
-          <SignLanguageWidget
-            phrase={phraseKey || "neutral"}
-            motionPlan={widgetMotionPlan}
-            replayNonce={signReplayNonce}
-            className="w-full"
-          />
-        </div>
-      )}
+      {previewBody}
     </div>
   );
 }

@@ -10,63 +10,10 @@ import type { UserType } from "@/lib/state/sessionStore";
 import { useSessionStore } from "@/lib/state/sessionStore";
 import { buildSpellPlan } from "@/lib/sign/spellingPlan";
 import {
-  buildArslSpellPlan,
-  inferSignPhraseKey,
-  isPrimarilyArabic,
-} from "@/lib/sign/vocabulary";
-
-/** Finger-spell Latin text with ASL letter gestures (deaf / both). */
-function applySpellPreviewForDeaf(text: string, extras?: { assetUrl?: string }) {
-  const showSp = useSessionStore.getState().signShowSpacesBetweenLetters;
-  const spellPlan = buildSpellPlan(text, showSp);
-  useSessionStore.getState().setSignPreview({
-    phraseKey: text.slice(0, 140),
-    spellSourceText: text,
-    spellPlan,
-    motionPlan: undefined,
-    ...extras,
-  });
-}
-
-/** ArSL finger-spelling with hand-shape emoji per letter. */
-function applyArslPreview(text: string, extras?: { assetUrl?: string }) {
-  const showSp = useSessionStore.getState().signShowSpacesBetweenLetters;
-  const spellPlan = buildArslSpellPlan(text, showSp);
-  useSessionStore.getState().setSignPreview({
-    phraseKey: text.slice(0, 140),
-    spellSourceText: text,
-    spellPlan,
-    motionPlan: undefined,
-    ...extras,
-  });
-}
-
-/** Update 2D/3D signer from AI output (peer actions, captions, solo AI). */
-function applySignPreviewFromAiText(text: string, userType: UserType | null | undefined) {
-  const trimmed = text.trim();
-  if (!trimmed) return;
-
-  // Arabic → same ArSL hand shapes as Sign keyboard (عربي tab), letter by letter.
-  if (isPrimarilyArabic(trimmed)) {
-    applyArslPreview(trimmed);
-    return;
-  }
-
-  const phraseKey = inferSignPhraseKey(trimmed);
-  if (phraseKey) {
-    useSessionStore.getState().setSignPreview({
-      phraseKey,
-      spellPlan: undefined,
-      spellSourceText: undefined,
-      motionPlan: undefined,
-    });
-    return;
-  }
-
-  if (userType === "deaf" || userType === "both") {
-    applySpellPreviewForDeaf(trimmed);
-  }
-}
+  applyAssistantGifPreview,
+  applySignPreviewFromText,
+  applySpellPreviewForDeaf,
+} from "@/lib/sign/signPreviewHelpers";
 
 export interface UseSessionOptions {
   /** Short-lived JWT from POST /sessions/{id}/ws-ticket */
@@ -241,7 +188,7 @@ export function useSession(opts: UseSessionOptions = {}) {
           typeof e.sentimentScore === "number" ? (e.sentimentScore as number) : undefined,
         sentimentSource: (e.sentimentSource as string) || undefined,
       });
-      applySignPreviewFromAiText(transcriptText, userTypeRef.current);
+      applySignPreviewFromText(transcriptText, userTypeRef.current);
       // Map server messageId → local message id for subsequent AI linking
       if (e.messageId) {
         pendingAiMessageId.current.set(e.messageId as string, id);
@@ -269,7 +216,7 @@ export function useSession(opts: UseSessionOptions = {}) {
         pendingAiMessageId.current.set(msgId, localId);
         clearLiveResponse();
         if (action && text.trim()) {
-          applySignPreviewFromAiText(text, userTypeRef.current);
+          applyAssistantGifPreview(text);
         }
         return;
       }
@@ -278,7 +225,7 @@ export function useSession(opts: UseSessionOptions = {}) {
       updateMessage(localId, { text, isPartial: true, action, role });
 
       if (action && text.trim()) {
-        applySignPreviewFromAiText(text, userTypeRef.current);
+        applyAssistantGifPreview(text);
       }
     });
 
@@ -295,8 +242,7 @@ export function useSession(opts: UseSessionOptions = {}) {
       const role = action ? "action-result" : "assistant";
       if (!action && !isSoloRoom()) return;
 
-      const utAi = userTypeRef.current;
-      applySignPreviewFromAiText(aiText, utAi);
+      applyAssistantGifPreview(aiText);
 
       if (pendingAiMessageId.current.has(msgId)) {
         const localId = pendingAiMessageId.current.get(msgId)!;
@@ -332,7 +278,7 @@ export function useSession(opts: UseSessionOptions = {}) {
       }
       const aiText = e.text as string;
       clearLiveResponse();
-      applySignPreviewFromAiText(aiText, userTypeRef.current);
+      applyAssistantGifPreview(aiText);
       addMessage({
         role: "assistant",
         text: aiText,
@@ -399,7 +345,7 @@ export function useSession(opts: UseSessionOptions = {}) {
       const text = (e.text as string) || "";
       if (!text) return;
 
-      applySignPreviewFromAiText(text, userTypeRef.current);
+      applySignPreviewFromText(text, userTypeRef.current);
 
       const localId = addMessage({
         role: kind === "transcript" ? "transcript" : "user",
@@ -539,7 +485,7 @@ export function useSession(opts: UseSessionOptions = {}) {
   const sendText = useCallback(
     (text: string, requestTTS = false) => {
       setReplyEmotionHint(null);
-      applySignPreviewFromAiText(text, userTypeRef.current);
+      applySignPreviewFromText(text, userTypeRef.current);
       const { manualMood } = useSessionStore.getState();
       wsRef.current?.sendText(
         text,
@@ -562,7 +508,7 @@ export function useSession(opts: UseSessionOptions = {}) {
         confidence,
         detectedLang,
       });
-      applySignPreviewFromAiText(transcriptText, userTypeRef.current);
+      applySignPreviewFromText(transcriptText, userTypeRef.current);
       return id;
     },
     [addMessage, setLiveCaption, setSystemStatus]

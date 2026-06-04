@@ -126,6 +126,8 @@ export function isPrimarilyArabic(text: string): boolean {
   return arabic > 0 && arabic >= latin;
 }
 
+import { matchPhraseSignGif } from "@/lib/sign/phraseSignGifs";
+
 /**
  * Map natural text to a known sign phrase (hello, thank you, …).
  * English / Latin phrases only (Arabic text uses keyboard ArSL via buildArslSpellPlan).
@@ -134,6 +136,9 @@ export function inferSignPhraseKey(value: string): string | null {
   if (isPrimarilyArabic(value)) return null;
   const text = normalizeSignText(value);
   if (!text) return null;
+
+  const gifPhrase = matchPhraseSignGif(value);
+  if (gifPhrase) return gifPhrase.phraseKey;
 
   const patterns: Array<{ phrase: string; variants: string[] }> = [
     {
@@ -152,6 +157,18 @@ export function inferSignPhraseKey(value: string): string | null {
     { phrase: "water", variants: ["water", "ماء"] },
     { phrase: "food", variants: ["food", "طعام"] },
     { phrase: "question", variants: ["question", "سؤال"] },
+    { phrase: "good morning", variants: ["good morning", "morning", "صباح الخير"] },
+    { phrase: "what's up", variants: ["what's up", "whats up", "sup"] },
+    { phrase: "excuse me", variants: ["excuse me", "pardon"] },
+    { phrase: "please repeat", variants: ["please repeat", "say again", "repeat that"] },
+    {
+      phrase: "i don't understand",
+      variants: ["i don't understand", "i dont understand", "don't understand"],
+    },
+    { phrase: "is it far", variants: ["is it far", "how far", "far away"] },
+    { phrase: "i enjoy this", variants: ["i enjoy this", "i like this", "love this"] },
+    { phrase: "maybe", variants: ["maybe", "perhaps", "possibly"] },
+    { phrase: "goodbye", variants: ["goodbye", "bye", "see you"] },
   ];
 
   for (const { phrase, variants } of patterns) {

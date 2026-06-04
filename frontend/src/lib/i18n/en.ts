@@ -47,8 +47,12 @@ export const en = {
   chat: {
     emptyTitle: "Start a conversation",
     emptySubtitle: "Use the microphone to capture speech, or type a message below.",
-    hologramTitle: "Signer hologram",
-    hologramHint: "3D signer preview. Updates when sign-language output is generated.",
+    hologramTitle: "Sign preview",
+    hologramHint:
+      "Toggle GIF or 2D in the header. GIFs for phrases and AI replies; 2D for finger-spelling.",
+    previewRendererLabel: "Preview display mode",
+    previewRendererGif: "GIF",
+    previewRenderer2d: "2D",
     you: "You",
     assistant: "Assistant",
     transcript: "Transcript",

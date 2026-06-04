@@ -52,6 +52,9 @@ export interface ChatMessage {
   sentimentSource?: string;
 }
 
+/** User preference: show sign clips as GIFs or 2D emoji widget. */
+export type SignPreviewRenderer = "gif" | "2d";
+
 interface SessionState {
   sessionId: string;
   messages: ChatMessage[];
@@ -74,11 +77,17 @@ interface SessionState {
     motionPlan?: SignMotionStep[];
     /** Finger-spelling + word markers for 2D (takes precedence over motionPlan). */
     spellPlan?: SpellStep[];
+    /** General AI replies use mood GIF; known phrases use phrase GIF; else 2D widget. */
+    previewMode?: "gif" | "sign" | "phrase-gif";
+    /** File name under `public/gifs/` when previewMode is phrase-gif. */
+    phraseGifFile?: string;
   } | null;
   /** When true, inserts a short "·" pause between finger-spelled letters. */
   signShowSpacesBetweenLetters: boolean;
   /** Incremented to restart the current 2D sign sequence from the beginning. */
   signReplayNonce: number;
+  /** Panel display: real GIF clips vs 2D finger-spelling / phrase widget. */
+  signPreviewRenderer: SignPreviewRenderer;
   /** Communication profile of the signed-in user. null until resolved from the server. */
   userType: UserType | null;
   /** Set when a peer disconnects — cleared after the user dismisses the notice. */
@@ -118,9 +127,12 @@ interface SessionState {
       assetUrl?: string;
       motionPlan?: SignMotionStep[];
       spellPlan?: SpellStep[];
+      previewMode?: "gif" | "sign" | "phrase-gif";
+      phraseGifFile?: string;
     } | null
   ) => void;
   setSignShowSpacesBetweenLetters: (value: boolean) => void;
+  setSignPreviewRenderer: (renderer: SignPreviewRenderer) => void;
   bumpSignReplay: () => void;
   setUserType: (type: UserType) => void;
   setPeerLeftAlert: (name: string | null) => void;
@@ -156,6 +168,7 @@ export const useSessionStore = create<SessionState>()(
       signPreview: null,
       signShowSpacesBetweenLetters: false,
       signReplayNonce: 0,
+      signPreviewRenderer: "gif",
       userType: null,
       peerLeftAlert: null,
       peerJoinAlert: null,
@@ -201,6 +214,7 @@ export const useSessionStore = create<SessionState>()(
       setSignPreview: (value) => set({ signPreview: value }),
       setSignShowSpacesBetweenLetters: (signShowSpacesBetweenLetters) =>
         set({ signShowSpacesBetweenLetters }),
+      setSignPreviewRenderer: (signPreviewRenderer) => set({ signPreviewRenderer }),
       bumpSignReplay: () => set((s) => ({ signReplayNonce: s.signReplayNonce + 1 })),
       setUserType: (type) => set({ userType: type }),
       setPeerLeftAlert: (name) => set({ peerLeftAlert: name }),

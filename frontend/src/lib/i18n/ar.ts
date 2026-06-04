@@ -49,8 +49,12 @@ export const ar: Translations = {
   chat: {
     emptyTitle: "ابدأ محادثة",
     emptySubtitle: "استخدم الميكروفون لالتقاط الكلام، أو اكتب رسالة أدناه.",
-    hologramTitle: "مجسم الإشارة",
-    hologramHint: "معاينة ثلاثية الأبعاد. تتحدث عند توفر إخراج الإشارة.",
+    hologramTitle: "معاينة الإشارة",
+    hologramHint:
+      "بدّل بين GIF و2D من الأعلى. GIF للعبارات وردود الذكاء الاصطناعي؛ 2D للإملاء حرفاً حرفاً.",
+    previewRendererLabel: "وضع العرض",
+    previewRendererGif: "GIF",
+    previewRenderer2d: "2D",
     you: "أنت",
     assistant: "المساعد",
     transcript: "النص المحول",

@@ -89,7 +89,11 @@ export function ChatWorkspace({ userType = "deaf", ...sessionOpts }: ChatWorkspa
           </div>
           {showCameraSentiment && (
             <aside className="hidden lg:flex w-[min(100%,22rem)] shrink-0 flex-col border-t lg:border-t-0 lg:border-l border-[var(--color-border)] overflow-hidden min-h-0">
-              {showHologram && <ChatHologramDock />}
+              {showHologram && (
+                <div className="flex min-h-0 flex-1 flex-col">
+                  <ChatHologramDock />
+                </div>
+              )}
               <CameraSentimentPanel className={showHologram ? "border-t" : "flex-1 border-t-0"} />
             </aside>
           )}

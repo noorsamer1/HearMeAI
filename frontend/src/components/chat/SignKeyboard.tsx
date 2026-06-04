@@ -7,6 +7,7 @@ import { clsx } from "clsx";
 import { useSessionStore } from "@/lib/state/sessionStore";
 import { signTranslate, getStoredToken } from "@/lib/api/client";
 import { showToast } from "@/components/common/Toast";
+import { applySignKeyboardComposePreview } from "@/lib/sign/signPreviewHelpers";
 import {
   ARSL_LETTER_MAP,
   ASL_LETTER_EMOJI,
@@ -71,6 +72,10 @@ export function SignKeyboard({ onClose, onSend }: SignKeyboardProps) {
       window.localStorage.setItem(SIGN_OUTPUT_LANG_KEY, outputLang);
     }
   }, [outputLang]);
+
+  useEffect(() => {
+    applySignKeyboardComposePreview(composed, tab);
+  }, [composed, tab]);
 
   const preview = composed.join(tab === "asl" ? "" : " ").trim();
 
