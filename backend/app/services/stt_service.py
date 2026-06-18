@@ -756,6 +756,22 @@ class STTService:
             "audio/mpeg": "mp3",
         }.get(normalized)
 
+    @staticmethod
+    def _resolve_openrouter_whisper_model(model: str) -> str:
+        """Ensure a transcription-capable model for the OpenRouter JSON endpoint.
+
+        Under STT_PROVIDER=gpt-audio-mini the configured model is a chat model
+        (``openai/gpt-audio-mini``) which the ``/audio/transcriptions`` endpoint
+        cannot use, so fall back to a real Whisper model.
+        """
+        name = (model or "").lower()
+        if "whisper" in name or "transcribe" in name:
+            return model
+        configured = (settings.stt_model or "").strip()
+        if "whisper" in configured.lower() or "transcribe" in configured.lower():
+            return configured
+        return _OPENROUTER_WHISPER_FALLBACKS[0]
+
     async def _request_whisper_transcription(
         self,
         client: AsyncOpenAI,
@@ -764,9 +780,13 @@ class STTService:
         ext: str,
         language_hint: str | None,
     ) -> _WhisperTranscriptionResponse:
-        if settings.stt_provider == "openrouter":
+        # Only the direct-OpenAI provider accepts multipart uploads. Any
+        # OpenRouter-hosted Whisper pass (provider "openrouter" or the Arabic/
+        # auto fallback under "gpt-audio-mini") must use the JSON base64 endpoint,
+        # otherwise OpenRouter returns 400 "invalid content-type: multipart/form-data".
+        if settings.stt_provider != "openai":
             return await self._request_openrouter_transcription(
-                model=model,
+                model=self._resolve_openrouter_whisper_model(model),
                 audio_data=audio_data,
                 ext=ext,
                 language_hint=language_hint,
