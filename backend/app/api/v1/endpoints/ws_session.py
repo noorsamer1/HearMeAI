@@ -637,7 +637,13 @@ async def websocket_session(
             exclude_user_key=user_key,
         )
         if sign:
-            await broadcast_fanout(session_id, {"type": "sign_suggestion", **sign}, exclude_user_key=None)
+            # Sign preview is a receiver aid only — never echo it back to the
+            # sender, otherwise the sender plays the GIF of their own message.
+            await broadcast_fanout(
+                session_id,
+                {"type": "sign_suggestion", **sign},
+                exclude_user_key=user_key,
+            )
 
     async def persist_and_fanout_user_text(
         text: str,
@@ -677,7 +683,12 @@ async def websocket_session(
             exclude_user_key=user_key,
         )
         if sign:
-            await broadcast_fanout(session_id, {"type": "sign_suggestion", **sign}, exclude_user_key=None)
+            # Receiver-only: exclude the sender so they don't play their own GIF.
+            await broadcast_fanout(
+                session_id,
+                {"type": "sign_suggestion", **sign},
+                exclude_user_key=user_key,
+            )
 
     async def persist_ai_assistant_message(
         content: str,

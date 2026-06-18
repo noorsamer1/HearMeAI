@@ -58,7 +58,7 @@ interface SignKeyboardProps {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function SignKeyboard({ onClose, onSend }: SignKeyboardProps) {
-  const { language, setInputText } = useSessionStore();
+  const { language, setInputText, roomHasPeer } = useSessionStore();
   const [tab, setTab] = useState<Tab>(language === "ar" ? "arsl" : "asl");
   const [composed, setComposed] = useState<string[]>([]);
   const [translating, setTranslating] = useState(false);
@@ -75,8 +75,11 @@ export function SignKeyboard({ onClose, onSend }: SignKeyboardProps) {
   }, [outputLang]);
 
   useEffect(() => {
+    // Receiver-only: the sign preview belongs to the partner. In a peer room we
+    // do not mirror the sender's composing preview on their own screen.
+    if (roomHasPeer) return;
     applySignKeyboardComposePreview(composed, tab);
-  }, [composed, tab]);
+  }, [composed, tab, roomHasPeer]);
 
   const preview = composed.join(tab === "asl" ? "" : " ").trim();
 
