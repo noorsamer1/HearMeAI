@@ -11,6 +11,15 @@ import {
   isPrimarilyArabic,
 } from "@/lib/sign/vocabulary";
 
+/**
+ * Whether a user profile communicates through sign language and should see the
+ * sign GIF preview + sign keyboard. Deaf and "both" rely on it to read speech;
+ * mute users use it as a signing input/confirmation channel.
+ */
+export function usesSignLanguage(userType: UserType | null | undefined): boolean {
+  return userType === "deaf" || userType === "both" || userType === "mute";
+}
+
 function applyPhraseGifPreview(meta: {
   phraseKey: string;
   fileName: string;
@@ -95,7 +104,7 @@ export function applySignPreviewFromText(
     return;
   }
 
-  if (userType === "deaf" || userType === "both") {
+  if (usesSignLanguage(userType)) {
     applySpellPreviewForDeaf(trimmed);
   }
 }

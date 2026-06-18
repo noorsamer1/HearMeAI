@@ -8,6 +8,7 @@ import { useSessionStore } from "@/lib/state/sessionStore";
 import { MicButton } from "@/components/audio/MicButton";
 import { SignKeyboard } from "@/components/chat/SignKeyboard";
 import { MoodEmojiPicker } from "@/components/chat/MoodEmojiPicker";
+import { usesSignLanguage } from "@/lib/sign/signPreviewHelpers";
 import { useTranslations } from "@/lib/i18n";
 import { showToast } from "@/components/common/Toast";
 
@@ -76,7 +77,7 @@ export function ControlDock({
   // Mic for normal + deaf (speech-to-text); mute/both rely on typing/sign keyboard
   const canSpeak = userType === "normal" || userType === "deaf";
   const canHear  = userType !== "deaf"  && userType !== "both";         // can hear audio → show speak-aloud
-  const showSignToggle = userType === "deaf" || userType === "both";    // sign keyboard ONLY for deaf/both
+  const showSignToggle = usesSignLanguage(userType);                    // sign keyboard for deaf / mute / both
 
   return (
     <div className="relative z-20 px-3 sm:px-4 pb-4 pt-2">

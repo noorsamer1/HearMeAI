@@ -6,6 +6,7 @@ import { useSessionStore } from "@/lib/state/sessionStore";
 import { useTranslations } from "@/lib/i18n";
 import { SignPreview } from "@/components/avatar/SignPreview";
 import { buildSpellPlan } from "@/lib/sign/spellingPlan";
+import { usesSignLanguage } from "@/lib/sign/signPreviewHelpers";
 
 const LETTER_SPACE_LS = "hearmeai-sign-letter-spacing";
 const PREVIEW_RENDERER_LS = "hearmeai-sign-preview-renderer";
@@ -43,7 +44,7 @@ export function ChatHologramDock() {
   }, [setSignShowSpacesBetweenLetters, setSignPreviewRenderer]);
 
   const signPreview = useSessionStore((s) => s.signPreview);
-  const showPreviewControls = userType === "deaf" || userType === "both";
+  const showPreviewControls = usesSignLanguage(userType);
   const showLetterControls =
     showPreviewControls &&
     signPreviewRenderer === "2d" &&

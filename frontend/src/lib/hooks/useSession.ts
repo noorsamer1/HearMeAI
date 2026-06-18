@@ -12,6 +12,7 @@ import { buildSpellPlan } from "@/lib/sign/spellingPlan";
 import {
   applyAssistantGifPreview,
   applySignPreviewFromText,
+  usesSignLanguage,
 } from "@/lib/sign/signPreviewHelpers";
 
 export interface UseSessionOptions {
@@ -380,7 +381,7 @@ export function useSession(opts: UseSessionOptions = {}) {
       const ut = userTypeRef.current;
       const sourceText = lastSignPreviewTextRef.current.trim();
       if (!sourceText) return;
-      if (ut === "deaf" || ut === "both") {
+      if (usesSignLanguage(ut)) {
         // Re-apply from full message text. Legacy handler finger-spelled phraseKey
         // and overwrote phrase GIFs (e.g. "please repeat" → 2D letters).
         applySignPreviewFromText(sourceText, ut);
@@ -447,7 +448,7 @@ export function useSession(opts: UseSessionOptions = {}) {
 
     ws.on("sign_motion_plan", () => {
       const ut = userTypeRef.current;
-      if (ut !== "deaf" && ut !== "both") return;
+      if (!usesSignLanguage(ut)) return;
       // Finger-spelling from chat text is authoritative; ignore semantic pose plans.
     });
 

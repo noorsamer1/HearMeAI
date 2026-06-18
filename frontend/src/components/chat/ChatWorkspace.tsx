@@ -15,6 +15,7 @@ import { ToastContainer } from "@/components/common/Toast";
 import { useSession, UseSessionOptions } from "@/lib/hooks/useSession";
 import { useSessionStore } from "@/lib/state/sessionStore";
 import { MANUAL_MOOD_CONFIDENCE } from "@/lib/sentiment/sentimentDisplay";
+import { usesSignLanguage } from "@/lib/sign/signPreviewHelpers";
 
 type ProfileUserType = "deaf" | "mute" | "both" | "normal";
 
@@ -72,7 +73,7 @@ export function ChatWorkspace({ userType = "deaf", ...sessionOpts }: ChatWorkspa
     [sendAction]
   );
 
-  const showHologram = userType === "deaf" || userType === "both";
+  const showHologram = usesSignLanguage(userType);
   const showCameraSentiment = true;
 
   return (
