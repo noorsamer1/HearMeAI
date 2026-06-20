@@ -122,4 +122,19 @@ describe("matchPhraseSignGif — no false positives", () => {
   it.each(unrelated)("does not match unrelated text %j", (text) => {
     expect(matchPhraseSignGif(text)).toBeNull();
   });
+
+  // A short variant word buried in a longer sentence must NOT fire a phrase GIF.
+  const buriedSingleWordVariant = [
+    "hi everyone, where is the bus station today",
+    "can you tell me where the nearest hospital is",
+    "the help desk is closed until tomorrow morning honestly",
+    "i was thinking maybe we could meet sometime next week",
+  ];
+
+  it.each(buriedSingleWordVariant)(
+    "does not match buried single-word variant %j",
+    (text) => {
+      expect(matchPhraseSignGif(text)).toBeNull();
+    }
+  );
 });

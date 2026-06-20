@@ -109,18 +109,29 @@ export function applySignPreviewFromText(
   }
 }
 
-/** Mood GIF avatar — assistant / general AI replies only. */
+/**
+ * Assistant / general AI reply preview — phrase-only.
+ *
+ * Shows a sign GIF only when the reply is a near-exact match for a known phrase
+ * variant (via {@link matchPhraseSignGif}). For any other free-form reply it
+ * clears the preview to idle: no generic mood avatar, no finger-spelling, and
+ * no loose keyword matching that would fire on a word buried in a sentence.
+ */
 export function applyAssistantGifPreview(text: string): void {
+  const setSignPreview = useSessionStore.getState().setSignPreview;
   const trimmed = text.trim();
-  if (!trimmed) return;
+  if (!trimmed) {
+    setSignPreview(null);
+    return;
+  }
 
-  useSessionStore.getState().setSignPreview({
-    phraseKey: trimmed.slice(0, 140),
-    spellSourceText: trimmed,
-    spellPlan: undefined,
-    motionPlan: undefined,
-    previewMode: "gif",
-  });
+  const phraseGif = matchPhraseSignGif(trimmed);
+  if (phraseGif) {
+    applyPhraseGifPreview(phraseGif);
+    return;
+  }
+
+  setSignPreview(null);
 }
 
 /** Live preview while composing on the sign keyboard. */

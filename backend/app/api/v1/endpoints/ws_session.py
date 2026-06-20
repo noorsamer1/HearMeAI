@@ -24,7 +24,7 @@ from app.crud import user as user_crud
 from app.db.session import get_session_factory
 from app.realtime import room_manager
 from app.services.ai_context import classify_text, enhance_text
-from app.utils.text_cleanup import strip_stage_directions
+from app.utils.text_cleanup import normalize_reply_caps, strip_stage_directions
 from app.services.emotion_aware_prompt import (
     EMOTION_CONFIDENCE_THRESHOLD,
     build_emotion_aware_system_prompt,
@@ -280,19 +280,19 @@ async def _stream_llm(
                 await send_fn(
                     {
                         "type": "ai_partial",
-                        "text": strip_stage_directions(full_text),
+                        "text": normalize_reply_caps(strip_stage_directions(full_text)),
                         "messageId": message_id,
                     }
                 )
 
         await asyncio.wait_for(_do_stream(), timeout=60.0)
-        cleaned = strip_stage_directions(full_text.strip())
+        cleaned = normalize_reply_caps(strip_stage_directions(full_text.strip()))
         await send_fn({"type": "ai_final", "text": cleaned, "messageId": message_id})
         return cleaned
     except asyncio.TimeoutError:
         logger.error("LLM stream timed out", message_id=message_id)
         await send_fn({"type": "error", "message": "AI response timed out", "code": "llm_timeout"})
-        cleaned = strip_stage_directions(full_text.strip())
+        cleaned = normalize_reply_caps(strip_stage_directions(full_text.strip()))
         await send_fn(
             {"type": "ai_final", "text": cleaned, "messageId": message_id, "error": True}
         )
@@ -300,7 +300,7 @@ async def _stream_llm(
     except Exception as exc:
         logger.error("LLM stream error", error=str(exc))
         await send_fn({"type": "error", "message": "AI response failed", "code": "llm_error"})
-        cleaned = strip_stage_directions(full_text.strip())
+        cleaned = normalize_reply_caps(strip_stage_directions(full_text.strip()))
         await send_fn(
             {"type": "ai_final", "text": cleaned, "messageId": message_id, "error": True}
         )
@@ -1211,7 +1211,7 @@ async def websocket_session(
                     }
                 )
 
-            result_text = strip_stage_directions(full_result.strip())
+            result_text = normalize_reply_caps(strip_stage_directions(full_result.strip()))
             await send(
                 {
                     "type": "ai_final",

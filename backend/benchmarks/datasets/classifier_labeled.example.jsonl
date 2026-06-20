@@ -1,0 +1,11 @@
+// Classifier eval set. Gold intent + emotion per message (human-labeled).
+// intent ∈ {greeting,request,question,statement,emergency,farewell}
+// emotion ∈ {positive,neutral,sad,angry,anxious}
+{"text": "Hi there, good to see you!", "intent": "greeting", "emotion": "positive"}
+{"text": "Can you please slow down a bit?", "intent": "request", "emotion": "neutral"}
+{"text": "Where is the nearest exit?", "intent": "question", "emotion": "anxious"}
+{"text": "I lost my wallet and I'm scared", "intent": "emergency", "emotion": "anxious"}
+{"text": "Thanks, talk to you later", "intent": "farewell", "emotion": "positive"}
+{"text": "The weather is fine today", "intent": "statement", "emotion": "neutral"}
+{"text": "مرحبا كيف حالك", "intent": "greeting", "emotion": "positive"}
+{"text": "ساعدني من فضلك", "intent": "request", "emotion": "anxious"}

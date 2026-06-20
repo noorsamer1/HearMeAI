@@ -3,7 +3,10 @@ import {
   PHRASE_SIGN_GIFS,
   matchPhraseSignGif,
 } from "@/lib/sign/phraseSignGifs";
-import { applySignPreviewFromText } from "@/lib/sign/signPreviewHelpers";
+import {
+  applyAssistantGifPreview,
+  applySignPreviewFromText,
+} from "@/lib/sign/signPreviewHelpers";
 
 const setSignPreview = vi.fn();
 
@@ -66,5 +69,35 @@ describe("applySignPreviewFromText — phrase GIF mode", () => {
       })
     );
     expect(matchPhraseSignGif("thank you")).toBeNull();
+  });
+});
+
+describe("applyAssistantGifPreview — phrase-only (no mood avatar)", () => {
+  beforeEach(() => {
+    setSignPreview.mockClear();
+  });
+
+  it("shows a phrase GIF when the reply matches a variant", () => {
+    applyAssistantGifPreview("hello");
+    expect(setSignPreview).toHaveBeenCalledWith(
+      expect.objectContaining({ previewMode: "phrase-gif", phraseGifFile: "hello.gif" })
+    );
+  });
+
+  it("clears the preview (idle) for a free-form reply with no phrase match", () => {
+    applyAssistantGifPreview("Sure, the bus station is two blocks north of here.");
+    expect(setSignPreview).toHaveBeenLastCalledWith(null);
+  });
+
+  it("never emits the generic mood gif preview mode", () => {
+    applyAssistantGifPreview("Let me think about that for a moment.");
+    for (const [arg] of setSignPreview.mock.calls) {
+      expect(arg?.previewMode).not.toBe("gif");
+    }
+  });
+
+  it("clears the preview for empty text", () => {
+    applyAssistantGifPreview("   ");
+    expect(setSignPreview).toHaveBeenLastCalledWith(null);
   });
 });

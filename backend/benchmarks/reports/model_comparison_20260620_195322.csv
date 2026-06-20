@@ -1,0 +1,16 @@
+# llm
+model,helpfulness_pct,instruction_following_pct,mean_latency_ms,cost_per_1k_calls_usd,samples
+Claude 3 Haiku,90.0,90.0,2178.3164199994644,0.2349,5
+Claude 3.5 Sonnet,0.0,0.0,0.0,0.0,0
+GPT-4o,95.0,100.0,1169.6247599989874,1.0085,5
+GPT-4o-mini,96.0,99.0,1776.8758400023216,0.0676,5
+
+# classifier
+model,intent_f1_pct,emotion_f1_pct,json_valid_pct,p95_latency_ms,cost_per_1k_calls_usd,samples
+GPT-4o-mini,100.0,71.9,100.0,918.1711999990512,0.0209,8
+Claude 3 Haiku,100.0,50.0,100.0,776.786100002937,0.0452,8
+
+# tts
+model,p95_latency_ms,mean_latency_ms,samples,note
+Edge Neural (production),1859.9784999969415,1535.7020499977807,2,MOS is collected separately via human rating (see README).
+

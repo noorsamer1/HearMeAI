@@ -1,0 +1,7 @@
+// STT eval manifest. One JSON object per line. Put audio files under
+// benchmarks/datasets/audio/ and reference the relative path. lang = en|ar|auto.
+// reference is the verbatim ground-truth transcript a human wrote.
+{"audio_path": "audio/en_001.wav", "lang": "en", "reference": "hello how are you doing today"}
+{"audio_path": "audio/en_002.wav", "lang": "en", "reference": "my name is sara and i need help"}
+{"audio_path": "audio/ar_001.wav", "lang": "ar", "reference": "مرحبا كيف حالك اليوم"}
+{"audio_path": "audio/ar_002.wav", "lang": "ar", "reference": "شو اخبارك ان شاء الله بخير"}

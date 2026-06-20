@@ -10,6 +10,7 @@ from app.core.logging_config import get_logger
 from app.core.rate_limit import limiter
 from app.schemas.ai import AIRequest, ActionRequest, ActionResponse
 from app.services.openrouter_client import OpenRouterClient, get_llm_client
+from app.utils.text_cleanup import normalize_reply_caps
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -40,7 +41,7 @@ async def ai_response(
     # Non-streaming
     try:
         start = time.perf_counter()
-        text = await llm.complete(body.messages)
+        text = normalize_reply_caps(await llm.complete(body.messages))
         elapsed_ms = int((time.perf_counter() - start) * 1000)
     except Exception as exc:
         logger.error("AI completion error", error=str(exc))

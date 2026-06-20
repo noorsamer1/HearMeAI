@@ -195,6 +195,19 @@ const VARIANT_MATCHERS = PHRASE_SIGN_GIFS.flatMap((entry) =>
   .filter((row) => row.normalized.length > 0)
   .sort((a, b) => b.normalized.length - a.normalized.length);
 
+/**
+ * Near-exact tolerance for single-word variants: how many extra filler words
+ * the message may carry beyond a one-word variant (e.g. "why is that" still
+ * matches "why"). Stops a short variant word buried in a longer sentence from
+ * firing a phrase GIF (e.g. "hi everyone, where is the bus" no longer matches
+ * "hi"/"where"). Multi-word variants are specific enough to match anywhere.
+ */
+const MAX_EXTRA_WORDS = 2;
+
+function countWords(value: string): number {
+  return value ? value.split(" ").length : 0;
+}
+
 export function phraseSignGifSrc(fileName: string): string {
   return `/gifs/${encodeURIComponent(fileName)}`;
 }
@@ -214,8 +227,18 @@ export function matchPhraseSignGif(text: string): PhraseSignGifMeta | null {
   const direct = BY_PHRASE_KEY[normalized];
   if (direct) return direct;
 
+  const inputWords = countWords(normalized);
   for (const { entry, normalized: variant } of VARIANT_MATCHERS) {
     if (normalized === variant) return entry;
+
+    // Single-word variants (e.g. "hi", "why", "where") only match a near-exact
+    // phrase — never a word buried in a longer sentence. Multi-word variants
+    // are specific enough to match as a contiguous phrase anywhere.
+    const variantWords = countWords(variant);
+    if (variantWords === 1 && inputWords - variantWords > MAX_EXTRA_WORDS) {
+      continue;
+    }
+
     const escaped = variant.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const pattern = new RegExp(`(^|\\s)${escaped}(\\s|$)`, "u");
     if (pattern.test(normalized)) return entry;

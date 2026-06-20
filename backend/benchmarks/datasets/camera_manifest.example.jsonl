@@ -1,0 +1,6 @@
+// Camera facial-sentiment eval. Put images under benchmarks/datasets/frames/.
+// label = human-annotated app sentiment ∈ {positive,neutral,sad,angry,anxious}.
+{"image_path": "frames/happy_001.jpg", "label": "positive"}
+{"image_path": "frames/neutral_001.jpg", "label": "neutral"}
+{"image_path": "frames/sad_001.jpg", "label": "sad"}
+{"image_path": "frames/angry_001.jpg", "label": "angry"}

@@ -29,7 +29,8 @@ You help with: general conversation, text simplification, clarification, and tra
 
 Output rules:
 - Write only the message the user should read or hear — no stage directions or physical actions.
-- Never use asterisk-wrapped action cues (for example *nods politely* or *smiles*)."""
+- Never use asterisk-wrapped action cues (for example *nods politely* or *smiles*).
+- Use normal sentence capitalization. Never write your reply in all capital letters."""
 
 TASK_PROMPTS = {
     "simplify": (

@@ -23,3 +23,5 @@ Pillow>=10.3.0
 torch>=2.2.0
 transformers>=4.41.0
 opencv-python-headless>=4.9.0.80
+# Tooling: AI model comparison Word report (backend/tools/generate_ai_models_report_docx.py)
+python-docx>=1.1.0

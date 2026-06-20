@@ -1,0 +1,7 @@
+// LLM eval prompts. Optional per-row "system" prompt overrides the default.
+// Scored by the LLM-judge on helpfulness + instruction-following.
+{"system": "Rewrite using very simple words and short sentences. Preserve meaning. No preamble.", "prompt": "Please simplify: The committee deliberated extensively before reaching a consensus on the proposed amendments."}
+{"system": "Explain clearly and concisely in simple language.", "prompt": "Clarify what 'compound interest' means."}
+{"system": "Translate to Arabic in clear Modern Standard Arabic. Preserve meaning.", "prompt": "Translate: The doctor will see you in five minutes."}
+{"system": "You assist deaf users. No stage directions or action cues.", "prompt": "I feel nervous about my appointment, can you reassure me?"}
+{"system": "Answer in the same language as the user.", "prompt": "ما هي أفضل طريقة لتعلم لغة الإشارة؟"}

@@ -190,12 +190,10 @@ export function useSession(opts: UseSessionOptions = {}) {
           typeof e.sentimentScore === "number" ? (e.sentimentScore as number) : undefined,
         sentimentSource: (e.sentimentSource as string) || undefined,
       });
-      // Sign preview is a RECEIVER aid: in a peer room the partner renders it.
-      // Only mirror our own transcript locally in solo (AI) mode.
-      if (isSoloRoom()) {
-        lastSignPreviewTextRef.current = transcriptText;
-        applySignPreviewFromText(transcriptText, userTypeRef.current);
-      }
+      // Sign preview never reflects the sender's own words. In solo (AI) mode
+      // the assistant's reply drives the preview; in a peer room the partner
+      // renders our message. Clear any stale local preview here.
+      setSignPreview(null);
       // Map server messageId → local message id for subsequent AI linking
       if (e.messageId) {
         pendingAiMessageId.current.set(e.messageId as string, id);
@@ -493,15 +491,10 @@ export function useSession(opts: UseSessionOptions = {}) {
   const sendText = useCallback(
     (text: string, requestTTS = false) => {
       setReplyEmotionHint(null);
-      // Sign preview belongs to the RECEIVER. In a peer room the partner sees
-      // our message as sign, so we clear any local compose preview. In solo
-      // (AI) mode there is no peer, so we mirror it for the sender.
-      if (isSoloRoom()) {
-        lastSignPreviewTextRef.current = text.trim();
-        applySignPreviewFromText(text, userTypeRef.current);
-      } else {
-        setSignPreview(null);
-      }
+      // Sign preview never reflects the sender's own words. In solo (AI) mode
+      // the assistant's reply drives the preview; in a peer room the partner
+      // renders our message. Either way, clear any stale local preview here.
+      setSignPreview(null);
       const { manualMood } = useSessionStore.getState();
       wsRef.current?.sendText(
         text,
@@ -524,11 +517,9 @@ export function useSession(opts: UseSessionOptions = {}) {
         confidence,
         detectedLang,
       });
-      // Receiver-only preview: mirror our own transcript locally only in solo mode.
-      if (isSoloRoom()) {
-        lastSignPreviewTextRef.current = transcriptText;
-        applySignPreviewFromText(transcriptText, userTypeRef.current);
-      }
+      // Receiver-only preview: never reflect the sender's own transcript. The
+      // assistant reply (solo) or the peer (lobby) drives the preview instead.
+      setSignPreview(null);
       return id;
     },
     [addMessage, setLiveCaption, setSystemStatus]
